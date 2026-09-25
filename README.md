@@ -24,7 +24,7 @@ Everything the app reads lives in `public/data/`:
 | --- | --- | --- |
 | `buildings.json` | Named campus buildings and their footprints | `npm run data:campus` |
 | `campus.json` | Roads, paths, parking, lawns and water for the basemap | `npm run data:campus` |
-| `rooms.json` | Real outline and floor of every room in UTD's official campus map | `npm run data:rooms` (after `data:campus`) |
+| `rooms.json` | Official outline, floor and location id of every room on UTD's campus map | `npm run data:rooms` (after `data:campus`), verify with `npm run check:rooms` |
 | `schedule.json` | Class meetings by room | `npm run data:astra` (real) or `npm run data:sample` |
 
 **Map data** comes from [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL) through the Overpass API. The whole basemap is drawn locally, so the app needs no tile server or map API key.
@@ -47,9 +47,16 @@ ASTRA_START=2026-10-05 npm run data:astra   # start somewhere else
 
 ## Where rooms come from
 
-Room outlines and floors come from UTD's official campus map (map.utdallas.edu), which runs on Concept3D and has an interior layer for each building. `scripts/fetch-rooms.mjs` downloads those rooms through the map's public API. Each room is filed under the building named in its label, the OpenStreetMap footprint it sits in, and its map category, so small naming differences between systems still match (Astra's `TH 2.702` is the map's `Theatre (JO 2.702)`). When the map's floor disagrees with the room number, the map wins.
+Room outlines and floors come from UTD's official campus map (map.utdallas.edu), which runs on Concept3D and has an interior layer for each building. `npm run data:rooms` downloads them into `public/data/rooms.json`, using only the rooms the official map itself shows:
 
-Classrooms with no location on the campus map are not drawn (currently only SPN 1.221), but they still show up in search and their schedules still open. The browser console lists them.
+- Only live entries under the map's **Interiors** categories are used. Archived revisions and floor-plan text labels (`Label 2.210 …`) are skipped.
+- When a room is listed twice, the importer uses the same entry the official map's search returns: the one in the building's own category (JSOM over the JSOM3 duplicate), named after the building ("JO 2.604 (Performance Hall)" over "Performance Hall (JO 2.604)").
+- Coordinates are copied exactly, with no rounding, and each room keeps its official location id.
+- A room is filed under every building code that fits it, so naming differences between systems still match (Astra's `TH 2.702` is the map's `Theatre (JO 2.702)`).
+
+**Checking it:** `npm run check:rooms` compares every classroom we draw against the live official map. For each one, it runs the map's own search, confirms we use the same location, then fetches that location and compares every coordinate and the floor. Run it after refreshing either data file.
+
+Classrooms with no shape on the official map are not drawn, but they still appear in search and their schedules still open. Right now that's ECSW 2.210 (the official map only has a text label there) and SPN 1.221, plus a few residence-hall rooms in buildings that aren't on the map.
 
 ## Project layout
 

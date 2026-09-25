@@ -2,6 +2,11 @@
 // (map.utdallas.edu, hosted on Concept3D) and writes public/data/rooms.json.
 // Run with: npm run data:rooms   (needs public/data/buildings.json first)
 //
+// Only rooms the official map itself shows are used: live entries under the
+// "Interiors" categories, not archived revisions or floor-plan text labels.
+// Coordinates are copied exactly, and each room keeps its official location id
+// so `npm run check:rooms` can verify it against the live map.
+//
 // The key below is the public client key the official map page itself uses.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
@@ -9,9 +14,10 @@ const MAP_ID = '1772';
 const KEY = process.env.CONCEPT3D_KEY ?? '0001085cc708b9cef47080f064612ca5';
 const API = 'https://api.concept3d.com';
 
-// Rooms are named like "2.410", "ECSS 2.410", "Label 1.171A" or "Theatre (JO 2.702)".
+// Rooms are named like "ECSS 2.410", "2.410" or "Theatre (JO 2.702)".
 const ROOM_RE = /(?:^|[\s(])(?:([A-Z]{2,5}\d?)\s+)?(\d{1,2}\.\d{3}[A-Z]?)(?=[\s)]|$)/;
-const round = (n) => Math.round(n * 1e6) / 1e6;
+// Floor-plan annotations that share room numbers but aren't rooms.
+const NOT_A_ROOM = /^(Label|Add|Removal)\b/i;
 
 async function get(path) {
   const res = await fetch(`${API}${path}?map=${MAP_ID}&key=${KEY}`, { headers: { Accept: 'application/json' } });
@@ -41,55 +47,69 @@ function parseOutline(shape) {
     pts = [[s, w], [n, w], [n, e], [s, e]];
   }
   if (!Array.isArray(pts) || pts.length < 3) return null;
-  return pts.map(([lat, lng]) => [round(Number(lat)), round(Number(lng))]);
+  return pts.map(([lat, lng]) => [Number(lat), Number(lng)]);
 }
 
 async function main() {
   const { buildings } = JSON.parse(await readFile('public/data/buildings.json', 'utf8'));
   const [locations, categories] = await Promise.all([get('/locations'), get('/categories')]);
 
-  // Interior categories are named "Engineering and Computer Science South (ECSS)".
-  const categoryCode = new Map();
-  for (const c of categories) {
-    const m = /\(([A-Z0-9]+)\)\s*$/.exec(c.name ?? '');
-    if (m) categoryCode.set(String(c.catId), m[1]);
-  }
+  const byId = new Map(categories.map((c) => [String(c.catId), c]));
+  const rootName = (catId) => {
+    let c = byId.get(String(catId));
+    let last = null;
+    for (let hops = 0; c && hops < 20; hops++, c = byId.get(String(c.parent))) last = c;
+    return last?.name;
+  };
+  // Interior categories are named "Engineering and Computer Science South (ECSS)" or "ECSW Interiors".
+  const categoryCode = (catId) => {
+    const name = byId.get(String(catId))?.name ?? '';
+    return /\(([A-Z0-9]+)\)\s*$/.exec(name)?.[1] ?? /^([A-Z0-9]+) Interiors$/.exec(name)?.[1];
+  };
 
   const rooms = {};
+  const rank = {}; // how well the chosen entry matches its key; higher wins
   for (const loc of locations) {
-    const m = ROOM_RE.exec(loc.name ?? '');
-    if (!m || loc.lat == null) continue;
-    const center = [round(Number(loc.lat)), round(Number(loc.lng))];
-    // Candidate buildings: the code in the name, the footprint the point sits in, and the
-    // category. Scheduling systems don't always agree (Astra's "TH 2.702" is the map's
-    // "Theatre (JO 2.702)"), so the room is filed under each of them.
-    const candidates = new Set(
-      [m[1], buildings.find((b) => pointInRing(center, b.rings[0]))?.code, categoryCode.get(String(loc.catId))].filter(Boolean),
-    );
-    if (!candidates.size) continue;
+    const name = (loc.name ?? '').trim();
+    const m = ROOM_RE.exec(name);
+    if (!m || loc.lat == null || NOT_A_ROOM.test(name) || rootName(loc.catId) !== 'Interiors') continue;
 
-    const floor = Number(String(loc.level).replace(/[^\d]/g, '')) || null;
     let outline = null;
     try {
       outline = parseOutline(loc.shape);
     } catch {
-      // A few shapes have malformed coordinates; the centre point still places the room.
+      // Malformed shape: the official map can't draw it either, so skip the room.
     }
-    const entry = { floor, center, ...(outline ? { outline } : {}) };
+    if (!outline) continue;
+
+    const center = [Number(loc.lat), Number(loc.lng)];
+    const catCode = categoryCode(loc.catId);
+    // Candidate buildings: the code in the name, the category, and the footprint the point
+    // sits in. Scheduling systems don't always agree (Astra's "TH 2.702" is the map's
+    // "Theatre (JO 2.702)"), so the room is filed under each of them.
+    const candidates = new Set(
+      [m[1], catCode, buildings.find((b) => pointInRing(center, b.rings[0]))?.code].filter(Boolean),
+    );
+    const floor = Number(String(loc.level).replace(/[^\d]/g, '')) || null;
+    const entry = { id: Number(loc.id), floor, center, outline };
 
     for (const code of candidates) {
       const key = `${code} ${m[2]}`;
-      // The map sometimes has a label point and a shaped room for the same number; keep the shaped one.
-      const prev = rooms[key];
-      if (!prev || (!prev.outline && outline)) rooms[key] = entry;
+      // Prefer the entry filed in the building's own category (JSOM over the JSOM3
+      // duplicate), then one whose name spells out the building, then one named starting with
+      // it ("JO 2.604 (Performance Hall)" over "Performance Hall (JO 2.604)"), matching the
+      // official search.
+      const score = (catCode === code ? 4 : 0) + (m[1] === code ? 2 : 0) + (name.startsWith(key) ? 1 : 0);
+      if (!(key in rank) || score > rank[key]) {
+        rooms[key] = entry;
+        rank[key] = score;
+      }
     }
   }
 
   await mkdir('public/data', { recursive: true });
   await writeFile('public/data/rooms.json', JSON.stringify({ source: 'UT Dallas campus map (Concept3D)', rooms }));
-  const n = Object.keys(rooms).length;
-  const shaped = Object.values(rooms).filter((r) => r.outline).length;
-  console.log(`Wrote ${n} rooms (${shaped} with outlines).`);
+  console.log(`Wrote ${Object.keys(rooms).length} rooms.`);
 }
 
 main().catch((e) => {

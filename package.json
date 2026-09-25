@@ -11,7 +11,8 @@
     "data:sample": "node scripts/generate-sample.mjs",
     "data:campus": "node scripts/fetch-campus.mjs",
     "data:astra": "node scripts/fetch-astra.mjs",
-    "data:rooms": "node scripts/fetch-rooms.mjs"
+    "data:rooms": "node scripts/fetch-rooms.mjs",
+    "check:rooms": "node scripts/check-rooms.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

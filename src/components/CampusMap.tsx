@@ -96,6 +96,9 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
       maxZoom: 20,
       zoomSnap: 0.5,
       maxBounds: L.latLngBounds([32.972, -96.772], [33.002, -96.73]),
+      maxBoundsViscosity: 1,
+      // Leaflet's default fling has no speed cap, so a quick flick can throw the map off campus.
+      inertiaMaxSpeed: 1500,
       zoomControl: false,
       attributionControl: true,
     });
