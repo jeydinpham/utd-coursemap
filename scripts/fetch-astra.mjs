@@ -1,5 +1,6 @@
-// Pulls real class meetings from UTD's Astra Schedule (the room-booking system)
-// using its public guest session, and writes public/data/schedule.json.
+// Pulls every booking in every bookable room from UTD's Astra Schedule (the
+// room-booking system): class meetings plus events such as student-organization
+// meetings. Uses Astra's public guest session and writes public/data/schedule.json.
 //
 //   npm run data:astra                          (next 14 days from today)
 //   ASTRA_DAYS=30 npm run data:astra            (a longer window)
@@ -8,6 +9,10 @@
 // Astra returns one day per request, so this makes ASTRA_DAYS requests with a
 // pause between each. Keep the window modest and don't run it more than about
 // once a day. Instructor names are not available from Astra.
+//
+// Left out on purpose: staff desk-sharing reservations (named after individual
+// employees), rows Astra uses internally (room holds, setup/teardown windows,
+// partition conflicts), and anything marked private.
 import { writeFile, mkdir } from 'node:fs/promises';
 
 const BASE = 'https://www.aaiscloud.com/UTXDallas';
@@ -22,7 +27,13 @@ const SKIP_BUILDINGS = new Set(['ONLINE']);
 const FIELDS =
   'ActivityId,ActivityPk,ActivityName,ParentActivityId,ParentActivityName,MeetingType,Description,StartDate,EndDate,DayOfWeek,StartMinute,EndMinute,ActivityTypeCode,ResourceId,CampusName,BuildingCode,RoomNumber,RoomName,LocationName,InstitutionId,SectionId,SectionPk,IsExam,IsCrosslist,IsAllDay,IsPrivate,EventId,EventPk,CurrentState,NotAllowedUsageMask,UsageColor,UsageColorIsPrimary,EventTypeColor,MaxAttendance,ActualAttendance,Capacity';
 const COL = Object.fromEntries(FIELDS.split(',').map((f, i) => [f, i]));
-const ACTIVITY_CLASS = 1; // ActivityTypeCode for course sections
+// ActivityTypeCode values. Others (9 room hold, 251 setup/teardown, 253 unknown,
+// 255 partition conflict) are Astra bookkeeping rather than real bookings.
+const ACTIVITY_CLASS = 1;
+const ACTIVITY_EVENT = 2;
+const SKIP_EVENT_TYPES = new Set(['Desk Sharing']);
+// Room types that are staff desks or unusable space, not rooms people book.
+const SKIP_ROOM_TYPES = /^(Workstation|Student Worker Station)$|UNDER CONSTRUCTION/i;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -92,6 +103,32 @@ function parseActivity(name) {
 
 const hhmm = (iso) => iso.slice(11, 16);
 
+/** "350 - CONFERENCE ROOM" -> "Conference room", "210 - LAB - CHEMISTRY" -> "Lab · Chemistry" */
+function roomTypeLabel(raw) {
+  const parts = String(raw ?? '')
+    .replace(/^\d+\s*-\s*/, '')
+    .replace(/\bCOVID\s+/i, '')
+    .split(/\s+-\s+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (!parts.length) return null;
+  const sentence = (s) => (s === s.toUpperCase() ? s.charAt(0) + s.slice(1).toLowerCase() : s);
+  return [sentence(parts[0]), ...parts.slice(1).map((p) => (p.length <= 4 ? p : titleCase(p)))].join(' · ');
+}
+
+/** Every bookable room in Astra, with its type, e.g. { "ECSS 2.412": "Classroom" }. */
+async function fetchRooms(cookie) {
+  const url = `${BASE}/~api/query/room?fields=Id,RoomNumber,Building.BuildingCode,MaxOccupancy,RoomType.Name&start=0&limit=5000`;
+  const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json', Cookie: cookie } });
+  if (!res.ok) throw new Error(`Astra room list returned ${res.status}`);
+  const types = {};
+  for (const [, number, rawB, , type] of (await res.json()).data ?? []) {
+    if (!number || !rawB || SKIP_BUILDINGS.has(rawB) || SKIP_ROOM_TYPES.test(type ?? '')) continue;
+    types[`${BUILDING_ALIASES[rawB] ?? rawB} ${number.trim()}`] = roomTypeLabel(type);
+  }
+  return types;
+}
+
 function campusToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
 }
@@ -108,6 +145,8 @@ async function main() {
   console.log(`Fetching Astra class meetings ${start} → ${end} (${DAYS} requests)...`);
 
   const cookie = await guestCookies();
+  const roomTypes = await fetchRooms(cookie);
+  await sleep(DELAY_MS);
 
   // One entry per room + time slot per day; crosslisted sections collapse into one.
   const slots = new Map();
@@ -115,36 +154,57 @@ async function main() {
     const date = addDays(start, i);
     const rows = await fetchDay(date, cookie);
     let classes = 0;
+    let events = 0;
     for (const row of rows) {
-      if (row[COL.ActivityTypeCode] !== ACTIVITY_CLASS || row[COL.IsPrivate]) continue;
+      const type = row[COL.ActivityTypeCode];
+      const meetingType = (row[COL.MeetingType] ?? '').trim();
+      if (row[COL.IsPrivate]) continue;
+      if (type !== ACTIVITY_CLASS && !(type === ACTIVITY_EVENT && !SKIP_EVENT_TYPES.has(meetingType))) continue;
       const rawB = row[COL.BuildingCode];
-      const r = row[COL.RoomNumber];
+      const r = row[COL.RoomNumber]?.trim();
       if (!rawB || !r || SKIP_BUILDINGS.has(rawB)) continue;
       const b = BUILDING_ALIASES[rawB] ?? rawB;
       const s = row[COL.StartDate];
       const e = row[COL.EndDate];
-      if (s.slice(0, 10) !== date) continue; // multi-day holds are not classes
-      const { code, sec, title } = parseActivity(row[COL.ActivityName]);
-      const key = `${date}|${b}|${r}|${hhmm(s)}|${hhmm(e)}`;
-      const slot = slots.get(key);
-      if (slot) {
-        if (code !== slot.code && !slot.xl.includes(code)) slot.xl.push(code);
-      } else {
-        slots.set(key, { date, b, r, start: hhmm(s), end: hhmm(e), code, sec, title, cap: row[COL.Capacity] || null, xl: [] });
-        classes++;
+      const cap = row[COL.Capacity] || null;
+
+      if (type === ACTIVITY_CLASS) {
+        if (s.slice(0, 10) !== date) continue; // classes never span days
+        const { code, sec, title } = parseActivity(row[COL.ActivityName]);
+        const key = `class|${date}|${b}|${r}|${hhmm(s)}|${hhmm(e)}`;
+        const slot = slots.get(key);
+        if (slot) {
+          if (code !== slot.code && !slot.xl.includes(code)) slot.xl.push(code);
+        } else {
+          slots.set(key, { kind: 'class', date, b, r, start: hhmm(s), end: hhmm(e), code, sec, title, cap, xl: [] });
+          classes++;
+        }
+        continue;
       }
+
+      // Events can span several days or the whole day; keep just the part that falls on `date`.
+      if (s.slice(0, 10) > date || e.slice(0, 10) < date) continue;
+      const allDay = row[COL.IsAllDay];
+      const start = !allDay && s.slice(0, 10) === date ? hhmm(s) : '00:00';
+      const end = !allDay && e.slice(0, 10) === date ? hhmm(e) : '23:59';
+      const name = (row[COL.ActivityName] ?? '').trim() || 'Reserved';
+      const key = `event|${date}|${b}|${r}|${start}|${end}|${name}`;
+      if (slots.has(key)) continue;
+      slots.set(key, { kind: 'event', date, b, r, start, end, code: name, sec: '', title: meetingType || 'Event', cap, xl: [] });
+      events++;
     }
-    console.log(`  ${date}: ${classes} class meetings`);
+    console.log(`  ${date}: ${classes} class meetings, ${events} events`);
     if (i < DAYS - 1) await sleep(DELAY_MS);
   }
 
   // Fold identical weekly meetings together so the file stays small.
   const patterns = new Map();
   for (const s of slots.values()) {
-    const key = [s.b, s.r, s.code, s.sec, s.start, s.end].join('|');
+    const key = [s.kind, s.b, s.r, s.code, s.sec, s.start, s.end].join('|');
     let p = patterns.get(key);
     if (!p) {
       p = { b: s.b, r: s.r, code: s.code, sec: s.sec, title: s.title, prof: '', days: [], start: s.start, end: s.end, from: null, to: null, dates: [], cap: s.cap };
+      if (s.kind === 'event') p.kind = 'event';
       if (s.xl.length) p.xl = s.xl;
       patterns.set(key, p);
     }
@@ -155,7 +215,12 @@ async function main() {
   const meetings = [...patterns.values()];
   for (const m of meetings) m.days.sort();
 
+  // Every bookable room, plus any room that had a booking even if Astra's room list missed it.
   const rooms = {};
+  for (const key of Object.keys(roomTypes)) {
+    const [b, r] = [key.slice(0, key.indexOf(' ')), key.slice(key.indexOf(' ') + 1)];
+    (rooms[b] ??= new Set()).add(r);
+  }
   for (const m of meetings) (rooms[m.b] ??= new Set()).add(m.r);
 
   await mkdir('public/data', { recursive: true });
@@ -167,10 +232,14 @@ async function main() {
       generatedAt: new Date().toISOString(),
       range: { start, end },
       rooms: Object.fromEntries(Object.entries(rooms).map(([b, s]) => [b, [...s]])),
+      roomTypes,
       meetings,
     }),
   );
-  console.log(`Wrote ${slots.size} class meetings (${meetings.length} patterns) across ${Object.values(rooms).reduce((n, s) => n + s.size, 0)} rooms.`);
+  const counts = [...slots.values()].reduce((c, s) => ((c[s.kind] = (c[s.kind] ?? 0) + 1), c), {});
+  console.log(
+    `Wrote ${counts.class ?? 0} class meetings and ${counts.event ?? 0} events (${meetings.length} patterns) across ${Object.values(rooms).reduce((n, s) => n + s.size, 0)} rooms.`,
+  );
 }
 
 main().catch((e) => {

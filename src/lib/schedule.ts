@@ -55,6 +55,11 @@ export function indexSchedule(data: ScheduleFile): ScheduleIndex {
   return { rooms, byBuilding, byRoom };
 }
 
+export const isEvent = (m: Meeting) => m.kind === 'event';
+
+/** "CS 3354.005" for a class; the event's name for anything else. */
+export const meetingLabel = (m: Meeting) => (isEvent(m) ? m.code : `${m.code}.${m.sec}`);
+
 export const meetsOn = (m: Meeting, date: string, weekday: number) =>
   m.dates ? m.dates.includes(date) : m.days.includes(weekday) && (!m.from || m.from <= date) && (!m.to || date <= m.to);
 

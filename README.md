@@ -1,11 +1,11 @@
 # UTD Course Map
 
-An interactive map of the UT Dallas campus that shows what's being taught in every classroom right now.
+An interactive map of the UT Dallas campus that shows what's happening in every bookable room right now: classes, club meetings and other events.
 
-- Each classroom is drawn at its real location and shape, from UTD's official campus map. Tiles are labeled with the room number. Rooms in session are orange and rooms with a class starting within 20 minutes are amber. Hover a room to see its class.
-- The map shows one floor at a time. Rooms on different floors share the same footprint, so they'd overlap otherwise. Pick a floor (1–4); each button shows how many classes are in session on it. The map opens on floor 2, where most classes are, and choosing a search result on another floor switches to it.
-- Click a room to see its full schedule for the day on a timeline. Step through other days with the arrows.
-- Search by course (`cs 3345`), room (`ECSS 2.410`) or title (and instructor, when the data source has them). Matching rooms are highlighted, and picking a result flies to that room.
+- Every bookable room (classrooms, conference and meeting rooms, labs, auditoriums) is drawn at its real location and shape, from UTD's official campus map, and labeled with its room number. Orange means a class is on, blue means an event (a club meeting, department event or other reservation), and amber means something starts within 20 minutes. Hover a room to see what's in it.
+- The map shows one floor at a time. Rooms on different floors share the same footprint, so they'd overlap otherwise. Pick a floor (1–4); each button shows how many rooms on it are in use. The map opens on floor 2, where most classes are, and choosing a search result on another floor switches to it.
+- Click a room to see its type, capacity and full schedule for the day on a timeline. Overlapping bookings sit side by side. Step through other days with the arrows.
+- Search by course (`cs 3345`), event name (`toastmasters`), room (`ECSS 2.410`) or title (and instructor, when the data source has them). Matching rooms are highlighted, and picking a result flies to that room.
 - Tap the clock to time-travel to any date or time. The live view follows campus time (America/Chicago) wherever you are.
 - Light and dark themes follow your system setting.
 
@@ -29,7 +29,7 @@ Everything the app reads lives in `public/data/`:
 
 **Map data** comes from [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL) through the Overpass API. The whole basemap is drawn locally, so the app needs no tile server or map API key.
 
-**Schedule data (real) comes from Astra Schedule**, UTD's room-booking system. Astra gives anonymous visitors a guest session, and its calendar API answers that session with every class meeting booked in every room, one day per request. No login or API key is needed.
+**Schedule data (real) comes from Astra Schedule**, UTD's room-booking system. Astra gives anonymous visitors a guest session, and its calendar API answers that session with every booking in every room, one day per request. The importer also downloads Astra's list of bookable rooms, so rooms with nothing booked still appear. No login or API key is needed.
 
 ```bash
 npm run data:astra                          # next 14 days
@@ -38,7 +38,9 @@ ASTRA_START=2026-10-05 npm run data:astra   # start somewhere else
 ```
 
 - The script pauses 1.5 s between days. Astra rate-limits by IP (it answers 404), so keep the window modest and run it at most about once a day, e.g. from a nightly cron or CI job.
-- Astra has course codes, sections, titles, rooms, times and capacity, but **no instructor names**.
+- Astra has course codes, sections, titles, rooms, times and capacity, but **no instructor names**. Events have only a name and a booking type ("Student Organization", "Meeting"), not descriptions.
+- Left out on purpose: staff desk-sharing reservations (named after individual employees), Astra's internal rows (room holds, setup/teardown windows, partition conflicts), anything marked private, and staff workstations or rooms under construction.
+- Events that span several days or the whole day are split into one booking per day.
 - Crosslisted sections (e.g. CS 3354 / SE 3354) are merged into one meeting, and the other codes are searchable.
 - The file only covers the downloaded window. If you pick a date outside it, the app says so instead of showing an empty campus.
 - Astra building `SOM` is mapped to `JSOM`. Online sections and rooms in buildings not on the map (a few residence-hall and off-site rooms) are skipped.
@@ -54,9 +56,9 @@ Room outlines and floors come from UTD's official campus map (map.utdallas.edu),
 - Coordinates are copied exactly, with no rounding, and each room keeps its official location id.
 - A room is filed under every building code that fits it, so naming differences between systems still match (Astra's `TH 2.702` is the map's `Theatre (JO 2.702)`).
 
-**Checking it:** `npm run check:rooms` compares every classroom we draw against the live official map. For each one, it runs the map's own search, confirms we use the same location, then fetches that location and compares every coordinate and the floor. Run it after refreshing either data file.
+**Checking it:** `npm run check:rooms` compares every room we draw against the live official map. For each one, it runs the map's own search, confirms we use the same location (skipping shapeless venue markers like "ECSS 2.102 (TI Auditorium)", as the map does), then fetches that location and compares every coordinate and the floor. Run it after refreshing either data file.
 
-Classrooms with no shape on the official map are not drawn, but they still appear in search and their schedules still open. Right now that's ECSW 2.210 (the official map only has a text label there) and SPN 1.221, plus a few residence-hall rooms in buildings that aren't on the map.
+Rooms with no shape on the official map are not drawn, but they still appear in search and their schedules still open. Right now that's 38 of Astra's 376 bookable rooms: outdoor spaces (SCI Courtyard and Atrium), the Student Success Center (no interior on the official map yet), residence-hall rooms, and a few others such as ECSW 2.210, where the official map only has a text label.
 
 ## Project layout
 

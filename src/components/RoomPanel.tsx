@@ -1,22 +1,53 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CampusMoment, Room } from '../types';
 import type { ScheduleIndex } from '../lib/schedule';
-import { meetingsOn, roomStatus } from '../lib/schedule';
+import { isEvent, meetingLabel, meetingsOn, roomStatus } from '../lib/schedule';
+import type { Meeting } from '../types';
 import { formatDate, formatDuration, formatMinutes, formatRange, shiftDate, toMinutes, weekdayOf } from '../lib/time';
 
 interface Props {
   room: Room;
   buildingName?: string;
+  roomType?: string;
   index: ScheduleIndex;
   moment: CampusMoment;
   onClose: () => void;
 }
 
 const PX_PER_MIN = 1.1;
+
+/**
+ * Bookings can overlap (an all-day event and a class, say). Give each one a lane
+ * so overlapping blocks sit side by side; `lanes` is how many share its cluster.
+ */
+function layoutLanes(meetings: Meeting[]) {
+  const out: { m: Meeting; lane: number; lanes: number }[] = [];
+  let cluster: { m: Meeting; lane: number; lanes: number }[] = [];
+  let laneEnds: number[] = [];
+  let clusterEnd = -1;
+  const flush = () => {
+    for (const item of cluster) item.lanes = laneEnds.length;
+    out.push(...cluster);
+    cluster = [];
+    laneEnds = [];
+  };
+  for (const m of meetings) {
+    const s = toMinutes(m.start);
+    const e = toMinutes(m.end);
+    if (s >= clusterEnd) flush();
+    let lane = laneEnds.findIndex((end) => end <= s);
+    if (lane === -1) lane = laneEnds.push(e) - 1;
+    else laneEnds[lane] = e;
+    cluster.push({ m, lane, lanes: 1 });
+    clusterEnd = Math.max(clusterEnd, e);
+  }
+  flush();
+  return out;
+}
 const DAY_START = 7 * 60;
 const DAY_END = 22 * 60;
 
-export default function RoomPanel({ room, buildingName, index, moment, onClose }: Props) {
+export default function RoomPanel({ room, buildingName, roomType, index, moment, onClose }: Props) {
   // The parent remounts this panel per room and viewed date, so this starts on the viewed day.
   const [date, setDate] = useState(moment.date);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -45,7 +76,7 @@ export default function RoomPanel({ room, buildingName, index, moment, onClose }
       <header className="panel__head">
         <div>
           <p className="panel__eyebrow">
-            {buildingName ?? room.building} · Floor {room.floor}
+            {[buildingName ?? room.building, roomType, `Floor ${room.floor}`].filter(Boolean).join(' · ')}
             {capacity ? ` · seats ${capacity}` : ''}
           </p>
           <h2 className="panel__title">
@@ -59,14 +90,12 @@ export default function RoomPanel({ room, buildingName, index, moment, onClose }
         </button>
       </header>
 
-      <div className={`status status--${status.kind}`}>
+      <div className={`status status--${status.kind}${status.kind !== 'free' && isEvent(status.meeting) ? ' status--event' : ''}`}>
         {status.kind === 'active' && (
           <>
             <span className="status__dot" />
             <div>
-              <strong>
-                {status.meeting.code}.{status.meeting.sec} in session
-              </strong>
+              <strong>{isEvent(status.meeting) ? status.meeting.code : `${meetingLabel(status.meeting)} in session`}</strong>
               <p>
                 {status.meeting.title} · ends in {formatDuration(status.minutesLeft)}
               </p>
@@ -90,7 +119,7 @@ export default function RoomPanel({ room, buildingName, index, moment, onClose }
               <p>
                 {status.next
                   ? `Next: ${status.next.code} at ${formatMinutes(toMinutes(status.next.start))}`
-                  : 'No more classes today'}
+                  : 'Nothing else booked today'}
               </p>
             </div>
           </>
@@ -106,7 +135,7 @@ export default function RoomPanel({ room, buildingName, index, moment, onClose }
         <div className="daynav__label">
           <strong>{formatDate(date)}</strong>
           <span>
-            {meetings.length} {meetings.length === 1 ? 'class' : 'classes'}
+            {meetings.length} {meetings.length === 1 ? 'booking' : 'bookings'}
           </span>
         </div>
         <button className="icon-btn" onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day">
@@ -123,7 +152,7 @@ export default function RoomPanel({ room, buildingName, index, moment, onClose }
 
       <div className="timeline-scroll" ref={scrollRef}>
         {meetings.length === 0 ? (
-          <p className="empty">No classes scheduled in this room on {formatDate(date, true)}.</p>
+          <p className="empty">Nothing booked in this room on {formatDate(date, true)}.</p>
         ) : (
           <ol className="timeline" style={{ height: y(end) + 16 }}>
             {hours.map((h) => (
@@ -131,21 +160,26 @@ export default function RoomPanel({ room, buildingName, index, moment, onClose }
                 <span>{formatMinutes(h).replace(':00', '')}</span>
               </li>
             ))}
-            {meetings.map((m) => {
+            {layoutLanes(meetings).map(({ m, lane, lanes }) => {
               const s = toMinutes(m.start);
               const e = toMinutes(m.end);
               const now = isViewedDay && s <= moment.minutes && moment.minutes < e;
               const past = isViewedDay && e <= moment.minutes;
               return (
                 <li
-                  key={`${m.code}-${m.sec}-${m.start}`}
-                  className={`block${now ? ' block--now' : ''}${past ? ' block--past' : ''}`}
-                  style={{ top: y(s), height: Math.max(28, (e - s) * PX_PER_MIN - 3) }}
+                  key={`${m.code}-${m.sec}-${m.start}-${m.end}`}
+                  className={`block${isEvent(m) ? ' block--event' : ''}${now ? ' block--now' : ''}${past ? ' block--past' : ''}`}
+                  style={{
+                    top: y(s),
+                    height: Math.max(28, (e - s) * PX_PER_MIN - 3),
+                    left: `calc(60px + (100% - 60px) * ${lane / lanes})`,
+                    width: `calc((100% - 60px) / ${lanes} - ${lanes > 1 ? 4 : 0}px)`,
+                  }}
                 >
                   <div className="block__row">
                     <strong>
                       {m.code}
-                      <span>.{m.sec}</span>
+                      {!isEvent(m) && <span>.{m.sec}</span>}
                     </strong>
                     <time>{formatRange(m.start, m.end)}</time>
                   </div>

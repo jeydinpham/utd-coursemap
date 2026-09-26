@@ -14,13 +14,17 @@ export interface CampusFeature {
   pts: LatLng[];
 }
 
-/** One recurring class meeting in one room, as written by the data scripts. */
+/**
+ * One recurring booking in one room, as written by the data scripts: a class
+ * meeting, or (kind "event") a non-class booking such as a club meeting.
+ */
 export interface Meeting {
+  kind?: 'event'; // absent for class meetings
   b: string; // building code, e.g. "ECSS"
   r: string; // room number, e.g. "2.410"
-  code: string; // "CS 3345"
-  sec: string; // "001"
-  title: string;
+  code: string; // "CS 3345", or the event's name
+  sec: string; // "001"; empty for events
+  title: string; // course title, or the event's booking type ("Student Organization")
   prof: string;
   days: number[]; // 0 = Sunday ... 6 = Saturday
   start: string; // "HH:MM", 24h, campus time
@@ -39,6 +43,8 @@ export interface ScheduleFile {
   /** Dates the file covers, when it only holds a window of days (Astra). */
   range?: { start: string; end: string };
   rooms: Record<string, string[]>;
+  /** Room type per room key, e.g. { "ECSS 2.412": "Classroom" } (Astra data). */
+  roomTypes?: Record<string, string>;
   meetings: Meeting[];
 }
 

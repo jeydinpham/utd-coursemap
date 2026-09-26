@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import type { CampusMoment, Meeting } from '../types';
 import { formatDate, formatMinutes, formatRange, toMinutes } from '../lib/time';
-import { roomKey } from '../lib/schedule';
+import { isEvent, meetingLabel, roomKey } from '../lib/schedule';
 
 interface Props {
   moment: CampusMoment;
   live: boolean;
   onTimeTravel: (m: { date: string; minutes: number } | null) => void;
-  activeCount: number;
+  activeClasses: number;
+  activeEvents: number;
   query: string;
   onQuery: (q: string) => void;
   results: Meeting[];
@@ -94,7 +95,7 @@ export default function ControlCard(p: Props) {
               aria-checked={p.floor === f}
               className={`floors__btn${p.floor === f ? ' floors__btn--on' : ''}`}
               onClick={() => p.onFloor(f)}
-              title={`${n} ${n === 1 ? 'class' : 'classes'} in session`}
+              title={`${n} ${n === 1 ? 'room' : 'rooms'} in use`}
             >
               <strong>{f}</strong>
               {n > 0 && <span>{n}</span>}
@@ -110,17 +111,17 @@ export default function ControlCard(p: Props) {
         </svg>
         <input
           type="search"
-          placeholder={p.hasInstructors ? 'Find a course, room or instructor' : 'Find a course or room'}
+          placeholder={p.hasInstructors ? 'Find a course, event, room or instructor' : 'Find a course, event or room'}
           value={p.query}
           onChange={(e) => p.onQuery(e.target.value)}
           onFocus={() => setFocused(true)}
           // Delay so a click on a result registers before the list closes.
           onBlur={() => setTimeout(() => setFocused(false), 150)}
-          aria-label={p.hasInstructors ? 'Search courses, rooms or instructors' : 'Search courses or rooms'}
+          aria-label={p.hasInstructors ? 'Search courses, events, rooms or instructors' : 'Search courses, events or rooms'}
         />
         {showResults && (
           <ul className="results" role="listbox">
-            {p.results.length === 0 && <li className="results__empty">No classes match on {formatDate(p.moment.date, true)}</li>}
+            {p.results.length === 0 && <li className="results__empty">Nothing matches on {formatDate(p.moment.date, true)}</li>}
             {p.results.map((m) => {
               const now = toMinutes(m.start) <= p.moment.minutes && p.moment.minutes < toMinutes(m.end);
               return (
@@ -130,10 +131,8 @@ export default function ControlCard(p: Props) {
                       setFocused(false);
                     }}>
                     <span className="results__main">
-                      <strong>
-                        {m.code}.{m.sec}
-                      </strong>{' '}
-                      {m.title}
+                      {isEvent(m) && <span className="results__tag">Event</span>}
+                      <strong>{meetingLabel(m)}</strong> {m.title}
                     </span>
                     <span className="results__meta">
                       {now && <em>Now</em>}
@@ -149,7 +148,8 @@ export default function ControlCard(p: Props) {
 
       {p.outOfRange && <p className="card__warn">{p.outOfRange}</p>}
       <p className="card__stat">
-        <strong>{p.activeCount}</strong> {p.activeCount === 1 ? 'class' : 'classes'} in session
+        <strong>{p.activeClasses}</strong> {p.activeClasses === 1 ? 'class' : 'classes'} and{' '}
+        <strong className="card__stat-event">{p.activeEvents}</strong> {p.activeEvents === 1 ? 'event' : 'events'}
         {p.live ? ' right now' : ` at ${formatMinutes(p.moment.minutes)}`}
       </p>
     </section>

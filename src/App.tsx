@@ -3,7 +3,7 @@ import CampusMap from './components/CampusMap';
 import ControlCard from './components/ControlCard';
 import RoomPanel from './components/RoomPanel';
 import type { Building, CampusFeature, CampusMoment, LatLng, Meeting, RoomShape, ScheduleFile } from './types';
-import { indexSchedule, matchesQuery, meetsOn, roomKey, roomStatus } from './lib/schedule';
+import { indexSchedule, isEvent, matchesQuery, meetsOn, roomKey, roomStatus } from './lib/schedule';
 import { campusNow, formatDate, toMinutes, weekdayOf } from './lib/time';
 
 interface Data {
@@ -120,15 +120,19 @@ export default function App() {
     return [...matches].sort((a, b) => rank(a) - rank(b) || a.start.localeCompare(b.start)).slice(0, 8);
   }, [matches, moment.minutes]);
 
-  const { activeCount, activeByFloor } = useMemo(() => {
+  // What's on right now: classes and events campus-wide, and rooms in use per floor.
+  const { activeClasses, activeEvents, activeByFloor } = useMemo(() => {
     const byFloor = new Map<number, number>();
-    let total = 0;
+    let classes = 0;
+    let events = 0;
     for (const room of index?.rooms.values() ?? []) {
-      if (roomStatus(index!, room.key, moment).kind !== 'active') continue;
-      total++;
+      const status = roomStatus(index!, room.key, moment);
+      if (status.kind !== 'active') continue;
+      if (isEvent(status.meeting)) events++;
+      else classes++;
       if (data?.shapes.has(room.key)) byFloor.set(room.floor, (byFloor.get(room.floor) ?? 0) + 1);
     }
-    return { activeCount: total, activeByFloor: byFloor };
+    return { activeClasses: classes, activeEvents: events, activeByFloor: byFloor };
   }, [index, moment, data]);
 
   if (error) return <div className="splash splash--error">{error}</div>;
@@ -156,7 +160,8 @@ export default function App() {
         moment={moment}
         live={!override}
         onTimeTravel={setOverride}
-        activeCount={activeCount}
+        activeClasses={activeClasses}
+        activeEvents={activeEvents}
         query={query}
         onQuery={setQuery}
         results={results}
@@ -177,7 +182,8 @@ export default function App() {
         outOfRange={outOfRange(data.schedule, moment.date)}
       />
       <div className="legend" aria-label="Legend">
-        <span><i className="swatch swatch--active" /> In class</span>
+        <span><i className="swatch swatch--active" /> Class</span>
+        <span><i className="swatch swatch--event" /> Event</span>
         <span><i className="swatch swatch--soon" /> Starting soon</span>
         <span><i className="swatch swatch--free" /> Free</span>
       </div>
@@ -189,6 +195,7 @@ export default function App() {
           key={`${selected.key}|${moment.date}`}
           room={selected}
           buildingName={buildingNames.get(selected.building)}
+          roomType={data.schedule.roomTypes?.[selected.key]}
           index={index}
           moment={moment}
           onClose={() => setSelectedKey(null)}

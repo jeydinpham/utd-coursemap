@@ -17,6 +17,8 @@
   --select: var(--green);
   --soon: #f2b233;
   --soon-soft: #fdf1d3;
+  --event: #2f7fd1;
+  --event-soft: #dceafa;
 
   --bldg: #e7e3db;
   --bldg-stroke: #cfc9bd;
@@ -51,6 +53,8 @@
     --select: #5cc28e;
     --soon: #e0a52e;
     --soon-soft: #3a3019;
+    --event: #4f9be8;
+    --event-soft: #17283b;
 
     --bldg: #2a2e33;
     --bldg-stroke: #3b4047;
@@ -181,6 +185,13 @@ path.room--soon {
 path.room--active {
   fill: var(--accent);
   stroke: color-mix(in srgb, var(--accent) 70%, black);
+}
+path.room--event.room--active {
+  fill: var(--event);
+  stroke: color-mix(in srgb, var(--event) 70%, black);
+}
+path.room--event.room--soon {
+  stroke: var(--event);
 }
 path.room--match {
   stroke: var(--select);
@@ -583,6 +594,21 @@ path.room--selected {
   color: var(--accent);
   font-size: 15px;
 }
+.card__stat .card__stat-event {
+  color: var(--event);
+}
+.results__tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--event-soft);
+  color: var(--event);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
 
 .legend {
   position: absolute;
@@ -611,6 +637,10 @@ path.room--selected {
 }
 .swatch--active {
   background: var(--accent);
+  border-color: transparent;
+}
+.swatch--event {
+  background: var(--event);
   border-color: transparent;
 }
 .swatch--soon {
@@ -737,6 +767,13 @@ path.room--selected {
   background: var(--accent);
   animation: pulse 1.8s infinite;
 }
+.status--active.status--event {
+  background: var(--event-soft);
+}
+.status--active.status--event .status__dot {
+  background: var(--event);
+  animation: none;
+}
 .status--soon {
   background: var(--soon-soft);
 }
@@ -820,6 +857,12 @@ path.room--selected {
 .block--now {
   background: var(--accent-soft);
   border-left-color: var(--accent);
+}
+.block--event {
+  border-left-color: var(--event);
+}
+.block--event.block--now {
+  background: var(--event-soft);
 }
 .block--past {
   opacity: 0.55;

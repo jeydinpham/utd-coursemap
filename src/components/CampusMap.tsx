@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Building, CampusFeature, CampusMoment, LatLng, Room, RoomShape } from '../types';
 import type { ScheduleIndex } from '../lib/schedule';
-import { roomStatus } from '../lib/schedule';
+import { isEvent, meetingLabel, roomStatus } from '../lib/schedule';
 import { formatMinutes, toMinutes } from '../lib/time';
 import { useColorScheme } from '../lib/useColorScheme';
 
@@ -75,6 +75,9 @@ interface BuildingLayer {
   center: L.LatLngExpression;
   top: L.LatLngExpression;
 }
+
+// Event names come from Astra as free text, so escape them before putting them in tooltip HTML.
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export default function CampusMap({ campus, buildings, index, shapes, visibleRooms, academic, floorBuildings, moment, selectedKey, highlight, focus, onSelectRoom }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -237,6 +240,7 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
       if (el) {
         el.classList.toggle('room--active', status.kind === 'active');
         el.classList.toggle('room--soon', status.kind === 'soon');
+        el.classList.toggle('room--event', status.kind !== 'free' && isEvent(status.meeting));
         el.classList.toggle('room--selected', r.key === selectedKey);
         el.classList.toggle('room--dim', dim);
         el.classList.toggle('room--match', highlight !== null && !dim);
@@ -247,9 +251,9 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
       const html = `<span>${r.number}</span>`;
       let tip: string;
       if (status.kind === 'active') {
-        tip = `<b>${r.key}</b><br>${status.meeting.code}.${status.meeting.sec} · until ${formatMinutes(toMinutes(status.meeting.end))}`;
+        tip = `<b>${r.key}</b><br>${escapeHtml(meetingLabel(status.meeting))} · until ${formatMinutes(toMinutes(status.meeting.end))}`;
       } else if (status.kind === 'soon') {
-        tip = `<b>${r.key}</b><br>${status.meeting.code} starts at ${formatMinutes(toMinutes(status.meeting.start))}`;
+        tip = `<b>${r.key}</b><br>${escapeHtml(status.meeting.code)} starts at ${formatMinutes(toMinutes(status.meeting.start))}`;
       } else {
         tip = `<b>${r.key}</b><br>${status.next ? `Free until ${formatMinutes(toMinutes(status.next.start))}` : 'Free for the rest of the day'}`;
       }
@@ -258,6 +262,7 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
         const inner = `<div class="room-label__box">${html}</div>`;
         if (labelEl.innerHTML !== inner) labelEl.innerHTML = inner;
         labelEl.classList.toggle('room-label--active', status.kind === 'active');
+        labelEl.classList.toggle('room-label--event', status.kind === 'active' && isEvent(status.meeting));
         labelEl.classList.toggle('room-label--dim', dim);
       }
       r.tile.setTooltipContent(tip);
@@ -271,7 +276,7 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
       const empty = !floorBuildings.has(b.code);
       el.innerHTML = b.hasRooms
         ? `<div class="building-badge${n ? ' building-badge--busy' : ''}${empty ? ' building-badge--empty' : ''}"><b>${b.code}</b>${
-            n ? `<span>${n} in class</span>` : ''
+            n ? `<span>${n} in use</span>` : ''
           }</div>`
         : `<div class="building-code">${b.code}</div>`;
     }
