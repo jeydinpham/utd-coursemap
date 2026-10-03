@@ -5,7 +5,7 @@ import type { Building, CampusFeature, CampusMoment, LatLng, Room, RoomShape } f
 import type { ScheduleIndex } from '../lib/schedule';
 import { isEvent, meetingLabel, roomStatus } from '../lib/schedule';
 import { formatMinutes, toMinutes } from '../lib/time';
-import { useColorScheme } from '../lib/useColorScheme';
+import { useTheme } from '../lib/theme';
 
 const CAMPUS_CENTER: LatLng = [32.9866, -96.7502];
 /** Opening view: the main academic core (ECS, SLC, FO, JSOM) at a zoom where room numbers are legible. */
@@ -88,7 +88,7 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
   useEffect(() => {
     onSelectRef.current = onSelectRoom;
   }, [onSelectRoom]);
-  const scheme = useColorScheme();
+  const theme = useTheme();
 
   // Create the map once.
   useEffect(() => {
@@ -146,7 +146,7 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
       map.off('zoomend', scaleLines);
       for (const g of groups.values()) g.remove();
     };
-  }, [campus, scheme]);
+  }, [campus, theme]);
 
   // Build building + room layers whenever the data changes.
   useEffect(() => {
@@ -276,7 +276,7 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
       const empty = !floorBuildings.has(b.code);
       el.innerHTML = b.hasRooms
         ? `<div class="building-badge${n ? ' building-badge--busy' : ''}${empty ? ' building-badge--empty' : ''}"><b>${b.code}</b>${
-            n ? `<span>${n} in use</span>` : ''
+            n ? `<span>${String(n).padStart(2, '0')} in use</span>` : ''
           }</div>`
         : `<div class="building-code">${b.code}</div>`;
     }

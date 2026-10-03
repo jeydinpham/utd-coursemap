@@ -135,8 +135,20 @@ export default function App() {
     return { activeClasses: classes, activeEvents: events, activeByFloor: byFloor };
   }, [index, moment, data]);
 
-  if (error) return <div className="splash splash--error">{error}</div>;
-  if (!data || !index) return <div className="splash">Loading campus…</div>;
+  if (error)
+    return (
+      <div className="splash">
+        <p className="mono splash__error">{error}</p>
+      </div>
+    );
+  if (!data || !index)
+    return (
+      <div className="splash" role="status" aria-label="Loading campus map">
+        <p className="splash__word" data-text="UTD Course Map">
+          UTD Course Map
+        </p>
+      </div>
+    );
 
   const selected = selectedKey ? index.rooms.get(selectedKey) : undefined;
 
@@ -181,14 +193,14 @@ export default function App() {
         hasInstructors={hasInstructors}
         outOfRange={outOfRange(data.schedule, moment.date)}
       />
-      <div className="legend" aria-label="Legend">
+      <div className="legend mono" aria-label="Legend">
         <span><i className="swatch swatch--active" /> Class</span>
         <span><i className="swatch swatch--event" /> Event</span>
-        <span><i className="swatch swatch--soon" /> Starting soon</span>
+        <span><i className="swatch swatch--soon" /> Soon</span>
         <span><i className="swatch swatch--free" /> Free</span>
       </div>
       {data.schedule.source === 'sample' && (
-        <p className="sample-note">Sample data · run npm run data:astra for real schedules</p>
+        <p className="sample-note mono">Sample data · run npm run data:astra for real schedules</p>
       )}
       {selected && (
         <RoomPanel

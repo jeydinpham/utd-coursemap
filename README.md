@@ -7,7 +7,7 @@ An interactive map of the UT Dallas campus that shows what's happening in every 
 - Click a room to see its type, capacity and full schedule for the day on a timeline. Overlapping bookings sit side by side. Step through other days with the arrows.
 - Search by course (`cs 3345`), event name (`toastmasters`), room (`ECSS 2.410`) or title (and instructor, when the data source has them). Matching rooms are highlighted, and picking a result flies to that room.
 - Tap the clock to time-travel to any date or time. The live view follows campus time (America/Chicago) wherever you are.
-- Light and dark themes follow your system setting.
+- Styled with the jeydinpham.com design system: warm dark theme by default, with a light "warm paper" theme behind the sun/moon toggle (saved per browser). Big Shoulders, Hanken Grotesk and Martian Mono come from Google Fonts. The one deliberate departure is on the map, which uses blue and gold from the design's pixel-art palette to tell events and "starting soon" apart from classes.
 
 ## Running it
 

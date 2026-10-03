@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ThemeToggle from './ThemeToggle';
 import type { CampusMoment, Meeting } from '../types';
 import { formatDate, formatMinutes, formatRange, toMinutes } from '../lib/time';
 import { isEvent, meetingLabel, roomKey } from '../lib/schedule';
@@ -23,6 +24,9 @@ interface Props {
   outOfRange: string | null;
 }
 
+/** Counts are zero-padded to two digits, per the design system's label style. */
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
 const SLIDER_MIN = 6 * 60;
 const SLIDER_MAX = 23 * 60;
 
@@ -33,32 +37,40 @@ export default function ControlCard(p: Props) {
 
   return (
     <section className="card" aria-label="Map controls">
-      <div className="card__head">
-        <div className="brand">
-          <span className="brand__mark" aria-hidden="true" />
-          <div>
-            <h1>UTD Course Map</h1>
-            <p>{p.sourceLabel}</p>
-          </div>
+      <header className="card__head">
+        <div>
+          <p className="mono eyebrow">
+            <i aria-hidden="true" className={p.live ? '' : 'eyebrow__dot--off'} />
+            {p.live ? 'Live' : 'Time travel'} · {p.sourceLabel}
+          </p>
+          <h1 className="logo">UTD Course Map</h1>
         </div>
-        <button
-          className={`clock${p.live ? ' clock--live' : ''}`}
-          onClick={() => setTimeOpen((o) => !o)}
-          aria-expanded={timeOpen}
-          aria-controls="time-travel"
-        >
-          <span className="clock__dot" aria-hidden="true" />
-          <span className="clock__text">
-            <strong>{formatMinutes(p.moment.minutes)}</strong>
-            <span>{p.live ? 'Live' : formatDate(p.moment.date, true)}</span>
+        <ThemeToggle />
+      </header>
+
+      <div className="now">
+        <button className="clock" onClick={() => setTimeOpen((o) => !o)} aria-expanded={timeOpen} aria-controls="time-travel">
+          <span className="clock__time">{formatMinutes(p.moment.minutes)}</span>
+          <span className="mono">
+            {formatDate(p.moment.date, true)} · {timeOpen ? 'Done ↑' : 'Change ↓'}
           </span>
         </button>
+        <dl className="tally">
+          <div>
+            <dt className="mono">{p.activeClasses === 1 ? 'Class' : 'Classes'}</dt>
+            <dd className="tally__n">{pad2(p.activeClasses)}</dd>
+          </div>
+          <div>
+            <dt className="mono">{p.activeEvents === 1 ? 'Event' : 'Events'}</dt>
+            <dd className="tally__n tally__n--event">{pad2(p.activeEvents)}</dd>
+          </div>
+        </dl>
       </div>
 
       {timeOpen && (
         <div className="timetravel" id="time-travel">
           <label className="field">
-            <span>Date</span>
+            <span className="mono">Date</span>
             <input
               type="date"
               value={p.moment.date}
@@ -66,7 +78,7 @@ export default function ControlCard(p: Props) {
             />
           </label>
           <label className="field field--grow">
-            <span>
+            <span className="mono">
               Time <output>{formatMinutes(p.moment.minutes)}</output>
             </span>
             <input
@@ -78,14 +90,14 @@ export default function ControlCard(p: Props) {
               onChange={(e) => p.onTimeTravel({ date: p.moment.date, minutes: Number(e.target.value) })}
             />
           </label>
-          <button className="btn" disabled={p.live} onClick={() => p.onTimeTravel(null)}>
-            Back to live
+          <button className="btn primary" disabled={p.live} onClick={() => p.onTimeTravel(null)}>
+            Back to live <span aria-hidden="true">→</span>
           </button>
         </div>
       )}
 
       <div className="floors" role="radiogroup" aria-label="Floor">
-        <span className="floors__label">Floor</span>
+        <span className="mono floors__label">Floor</span>
         {p.floors.map((f) => {
           const n = p.activeByFloor.get(f) ?? 0;
           return (
@@ -98,7 +110,7 @@ export default function ControlCard(p: Props) {
               title={`${n} ${n === 1 ? 'room' : 'rooms'} in use`}
             >
               <strong>{f}</strong>
-              {n > 0 && <span>{n}</span>}
+              {n > 0 && <span>{pad2(n)}</span>}
             </button>
           );
         })}
@@ -121,7 +133,7 @@ export default function ControlCard(p: Props) {
         />
         {showResults && (
           <ul className="results" role="listbox">
-            {p.results.length === 0 && <li className="results__empty">Nothing matches on {formatDate(p.moment.date, true)}</li>}
+            {p.results.length === 0 && <li className="mono results__empty">Nothing matches on {formatDate(p.moment.date, true)}</li>}
             {p.results.map((m) => {
               const now = toMinutes(m.start) <= p.moment.minutes && p.moment.minutes < toMinutes(m.end);
               return (
@@ -131,11 +143,11 @@ export default function ControlCard(p: Props) {
                       setFocused(false);
                     }}>
                     <span className="results__main">
-                      {isEvent(m) && <span className="results__tag">Event</span>}
                       <strong>{meetingLabel(m)}</strong> {m.title}
                     </span>
-                    <span className="results__meta">
-                      {now && <em>Now</em>}
+                    <span className="mono results__meta">
+                      {now && <em className="badge">Now</em>}
+                      {isEvent(m) && <em className="tag tag--event">Event</em>}
                       {roomKey(m.b, m.r)} · {formatRange(m.start, m.end)}
                     </span>
                   </button>
@@ -147,11 +159,6 @@ export default function ControlCard(p: Props) {
       </div>
 
       {p.outOfRange && <p className="card__warn">{p.outOfRange}</p>}
-      <p className="card__stat">
-        <strong>{p.activeClasses}</strong> {p.activeClasses === 1 ? 'class' : 'classes'} and{' '}
-        <strong className="card__stat-event">{p.activeEvents}</strong> {p.activeEvents === 1 ? 'event' : 'events'}
-        {p.live ? ' right now' : ` at ${formatMinutes(p.moment.minutes)}`}
-      </p>
     </section>
   );
 }

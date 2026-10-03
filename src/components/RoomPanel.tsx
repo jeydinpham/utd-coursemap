@@ -75,12 +75,12 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
     <aside className="panel" aria-label={`Schedule for ${room.key}`}>
       <header className="panel__head">
         <div>
-          <p className="panel__eyebrow">
+          <p className="mono panel__eyebrow">
             {[buildingName ?? room.building, roomType, `Floor ${room.floor}`].filter(Boolean).join(' · ')}
             {capacity ? ` · seats ${capacity}` : ''}
           </p>
           <h2 className="panel__title">
-            {room.building} <span>{room.number}</span>
+            {room.building} <em className="accent">{room.number}</em>
           </h2>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close room schedule">
@@ -93,35 +93,31 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
       <div className={`status status--${status.kind}${status.kind !== 'free' && isEvent(status.meeting) ? ' status--event' : ''}`}>
         {status.kind === 'active' && (
           <>
-            <span className="status__dot" />
-            <div>
-              <strong>{isEvent(status.meeting) ? status.meeting.code : `${meetingLabel(status.meeting)} in session`}</strong>
-              <p>
-                {status.meeting.title} · ends in {formatDuration(status.minutesLeft)}
-              </p>
-            </div>
+            <p className="mono status__label">
+              <em className={`badge${isEvent(status.meeting) ? ' badge--event' : ''}`}>Now</em>
+              {isEvent(status.meeting) ? status.meeting.title : 'In session'} · ends in {formatDuration(status.minutesLeft)}
+            </p>
+            <strong className="status__what">{meetingLabel(status.meeting)}</strong>
+            {!isEvent(status.meeting) && <p className="status__detail">{status.meeting.title}</p>}
           </>
         )}
         {status.kind === 'soon' && (
           <>
-            <span className="status__dot" />
-            <div>
-              <strong>{status.meeting.code} starts in {status.minutesUntil} min</strong>
-              <p>{status.meeting.title}</p>
-            </div>
+            <p className="mono status__label">
+              <em className="badge badge--soon">Soon</em>
+              Starts in {status.minutesUntil} min
+            </p>
+            <strong className="status__what">{meetingLabel(status.meeting)}</strong>
+            <p className="status__detail">{status.meeting.title}</p>
           </>
         )}
         {status.kind === 'free' && (
           <>
-            <span className="status__dot" />
-            <div>
-              <strong>Free right now</strong>
-              <p>
-                {status.next
-                  ? `Next: ${status.next.code} at ${formatMinutes(toMinutes(status.next.start))}`
-                  : 'Nothing else booked today'}
-              </p>
-            </div>
+            <p className="mono status__label">
+              <em className="badge badge--free">Free</em>
+              {status.next ? `Until ${formatMinutes(toMinutes(status.next.start))}` : 'For the rest of the day'}
+            </p>
+            {status.next && <p className="status__detail">Next up: {meetingLabel(status.next)}</p>}
           </>
         )}
       </div>
@@ -134,8 +130,8 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
         </button>
         <div className="daynav__label">
           <strong>{formatDate(date)}</strong>
-          <span>
-            {meetings.length} {meetings.length === 1 ? 'booking' : 'bookings'}
+          <span className="mono">
+            {String(meetings.length).padStart(2, '0')} {meetings.length === 1 ? 'booking' : 'bookings'}
           </span>
         </div>
         <button className="icon-btn" onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day">
@@ -145,19 +141,19 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
         </button>
       </nav>
       {!isViewedDay && (
-        <button className="link-btn daynav__back" onClick={() => setDate(moment.date)}>
-          Back to {formatDate(moment.date, true)}
+        <button className="link daynav__back" onClick={() => setDate(moment.date)}>
+          Back to {formatDate(moment.date, true)} ↑
         </button>
       )}
 
       <div className="timeline-scroll" ref={scrollRef}>
         {meetings.length === 0 ? (
-          <p className="empty">Nothing booked in this room on {formatDate(date, true)}.</p>
+          <p className="mono empty">Nothing booked in this room on {formatDate(date, true)}.</p>
         ) : (
           <ol className="timeline" style={{ height: y(end) + 16 }}>
             {hours.map((h) => (
               <li key={h} className="timeline__hour" style={{ top: y(h) }} aria-hidden="true">
-                <span>{formatMinutes(h).replace(':00', '')}</span>
+                <span className="mono">{formatMinutes(h).replace(':00', '')}</span>
               </li>
             ))}
             {layoutLanes(meetings).map(({ m, lane, lanes }) => {
@@ -181,7 +177,7 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
                       {m.code}
                       {!isEvent(m) && <span>.{m.sec}</span>}
                     </strong>
-                    <time>{formatRange(m.start, m.end)}</time>
+                    <time className="mono">{formatRange(m.start, m.end)}</time>
                   </div>
                   <p className="block__title">{m.title}</p>
                   {(m.prof || m.xl?.length) && (
@@ -192,7 +188,7 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
             })}
             {isViewedDay && moment.minutes >= start && moment.minutes <= end && (
               <li className="timeline__now" style={{ top: y(moment.minutes) }} aria-label={`Now, ${formatMinutes(moment.minutes)}`}>
-                <span>{formatMinutes(moment.minutes)}</span>
+                <span className="mono">{formatMinutes(moment.minutes, false)}</span>
               </li>
             )}
           </ol>
