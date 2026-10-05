@@ -37,6 +37,7 @@ ASTRA_DAYS=30 npm run data:astra            # longer window
 ASTRA_START=2026-10-05 npm run data:astra   # start somewhere else
 ```
 
+- **Automatic refresh:** a GitHub Action (`.github/workflows/refresh-schedule.yml`) runs `data:astra` every night at about 4 AM Dallas time and commits the new `schedule.json`, which also redeploys the site on Vercel. You can run it by hand from the repo's Actions tab.
 - The script pauses 1.5 s between days. Astra rate-limits by IP (it answers 404), so keep the window modest and run it at most about once a day, e.g. from a nightly cron or CI job.
 - Astra has course codes, sections, titles, rooms, times and capacity, but **no instructor names**. Events have only a name and a booking type ("Student Organization", "Meeting"), not descriptions.
 - Left out on purpose: staff desk-sharing reservations (named after individual employees), Astra's internal rows (room holds, setup/teardown windows, partition conflicts), anything marked private, and staff workstations or rooms under construction.

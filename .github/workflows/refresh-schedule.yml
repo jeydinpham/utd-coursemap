@@ -1,0 +1,46 @@
+# Re-downloads the next 14 days of room bookings from Astra every night and
+# commits public/data/schedule.json, so the site never runs out of schedule.
+# Pushing to main also triggers a fresh Vercel deploy.
+name: Refresh schedule
+
+on:
+  schedule:
+    # 09:15 UTC = 4:15 AM in Dallas during daylight time (3:15 AM in winter).
+    - cron: '15 9 * * *'
+  workflow_dispatch: # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-schedule
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download bookings from Astra
+        run: npm run data:astra
+
+      - name: Commit if the schedule changed
+        run: |
+          if git diff --quiet -- public/data/schedule.json; then
+            echo "Schedule unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add public/data/schedule.json
+          git commit -m "Refresh schedule from Astra ($(TZ=America/Chicago date +%Y-%m-%d))"
+          git push
