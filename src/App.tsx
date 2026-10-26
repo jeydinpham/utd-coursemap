@@ -3,7 +3,7 @@ import CampusMap from './components/CampusMap';
 import ControlCard from './components/ControlCard';
 import RoomPanel from './components/RoomPanel';
 import type { Building, CampusFeature, CampusMoment, LatLng, Meeting, RoomShape, ScheduleFile } from './types';
-import { indexSchedule, isEvent, matchesQuery, meetsOn, roomKey, roomStatus } from './lib/schedule';
+import { compareRooms, indexSchedule, isEvent, isFreeUntil, matchesQuery, meetsOn, roomKey, roomStatus } from './lib/schedule';
 import { campusNow, formatDate, toMinutes, weekdayOf } from './lib/time';
 
 interface Data {
@@ -59,6 +59,7 @@ export default function App() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ key: string; n: number } | null>(null);
   const [query, setQuery] = useState('');
+  const [freeUntil, setFreeUntil] = useState<number | null>(null);
   const [chosenFloor, setFloor] = useState<number | null>(null);
   const clock = useCampusClock();
 
@@ -107,7 +108,25 @@ export default function App() {
   );
 
   const matches = useMemo(() => (query.trim() ? todays.filter((m) => matchesQuery(m, query)) : null), [todays, query]);
-  const highlight = useMemo(() => (matches ? new Set(matches.map((m) => roomKey(m.b, m.r))) : null), [matches]);
+
+  // Rooms with nothing booked from now until the chosen time, across every floor.
+  const freeRooms = useMemo(
+    () => (freeUntil === null || !index ? null : drawable.filter((r) => isFreeUntil(index, r.key, moment, freeUntil)).sort((a, b) => a.building.localeCompare(b.building) || compareRooms(a, b))),
+    [freeUntil, index, drawable, moment],
+  );
+  const freeByFloor = useMemo(() => {
+    const byFloor = new Map<number, number>();
+    for (const r of freeRooms ?? []) byFloor.set(r.floor, (byFloor.get(r.floor) ?? 0) + 1);
+    return byFloor;
+  }, [freeRooms]);
+
+  // Search and the free-until filter narrow the map together.
+  const highlight = useMemo(() => {
+    const found = matches ? new Set(matches.map((m) => roomKey(m.b, m.r))) : null;
+    const free = freeRooms ? new Set(freeRooms.map((r) => r.key)) : null;
+    if (found && free) return new Set([...found].filter((k) => free.has(k)));
+    return found ?? free;
+  }, [matches, freeRooms]);
 
   const results = useMemo(() => {
     if (!matches) return [];
@@ -181,10 +200,13 @@ export default function App() {
         floor={floor}
         onFloor={setFloor}
         activeByFloor={activeByFloor}
-        onPickResult={(m) => {
-          const key = roomKey(m.b, m.r);
+        freeUntil={freeUntil}
+        onFreeUntil={setFreeUntil}
+        freeOnFloor={freeRooms?.filter((r) => r.floor === floor) ?? []}
+        freeByFloor={freeByFloor}
+        onPickRoom={(key) => {
           const room = index.rooms.get(key);
-          // Jump to the result's floor so its room is actually on the map.
+          // Jump to the room's floor so it is actually on the map.
           if (room && room.floor !== floor) setFloor(room.floor);
           setSelectedKey(key);
           setFocus((f) => ({ key, n: (f?.n ?? 0) + 1 }));

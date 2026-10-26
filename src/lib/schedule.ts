@@ -89,6 +89,11 @@ export function roomStatus(index: ScheduleIndex, key: string, at: CampusMoment):
   return minutesUntil <= SOON_MINUTES ? { kind: 'soon', meeting: next, minutesUntil } : { kind: 'free', next, minutesUntil };
 }
 
+/** True when nothing is booked in the room from `at` until `until` (minutes since midnight) on that day. */
+export function isFreeUntil(index: ScheduleIndex, key: string, at: CampusMoment, until: number): boolean {
+  return meetingsOn(index, key, at.date, at.weekday).every((m) => toMinutes(m.end) <= at.minutes || toMinutes(m.start) >= until);
+}
+
 /** Lower-cased, space-insensitive match used by the search box: "cs3345", "ECSS 2.4", "data struct". */
 export function matchesQuery(m: Meeting, q: string): boolean {
   const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '');
