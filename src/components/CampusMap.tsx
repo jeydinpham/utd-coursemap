@@ -53,6 +53,8 @@ interface Props {
   /** Changing this value flies the map to that room. */
   focus: { key: string; n: number } | null;
   onSelectRoom: (key: string | null) => void;
+  /** Called with the map's center whenever the view settles, and once on load. */
+  onView: (center: LatLng) => void;
 }
 
 interface RoomLayer {
@@ -79,15 +81,17 @@ interface BuildingLayer {
 // Event names come from Astra as free text, so escape them before putting them in tooltip HTML.
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-export default function CampusMap({ campus, buildings, index, shapes, visibleRooms, academic, floorBuildings, moment, selectedKey, highlight, focus, onSelectRoom }: Props) {
+export default function CampusMap({ campus, buildings, index, shapes, visibleRooms, academic, floorBuildings, moment, selectedKey, highlight, focus, onSelectRoom, onView }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const roomsRef = useRef<RoomLayer[]>([]);
   const buildingsRef = useRef<BuildingLayer[]>([]);
   const onSelectRef = useRef(onSelectRoom);
+  const onViewRef = useRef(onView);
   useEffect(() => {
     onSelectRef.current = onSelectRoom;
-  }, [onSelectRoom]);
+    onViewRef.current = onView;
+  }, [onSelectRoom, onView]);
   const theme = useTheme();
 
   // Create the map once.
@@ -108,6 +112,12 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     map.attributionControl.setPrefix(false).addAttribution(ATTRIBUTION);
     map.on('click', () => onSelectRef.current(null));
+    const reportView = () => {
+      const c = map.getCenter();
+      onViewRef.current([c.lat, c.lng]);
+    };
+    map.on('moveend', reportView);
+    reportView();
     mapRef.current = map;
     return () => {
       map.remove();

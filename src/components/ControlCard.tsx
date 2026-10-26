@@ -23,7 +23,8 @@ interface Props {
   /** Minutes since midnight a room must stay free until; null when the filter is off. */
   freeUntil: number | null;
   onFreeUntil: (minutes: number | null) => void;
-  freeOnFloor: Room[];
+  /** Free rooms on this floor, nearest the middle of the map first; `until` is when each is next booked (null: not again today). */
+  freeOnFloor: { room: Room; until: number | null }[];
   freeByFloor: Map<number, number>;
   sourceLabel: string;
   hasInstructors: boolean;
@@ -226,13 +227,15 @@ export default function ControlCard(p: Props) {
                 <p className="mono freeuntil__count">
                   {pad2(p.freeOnFloor.length)} {p.freeOnFloor.length === 1 ? 'room' : 'rooms'} on floor {p.floor} free until{' '}
                   {formatMinutes(p.freeUntil!)}
+                  {p.freeOnFloor.length > 1 ? ' · nearest first' : ''}
                 </p>
                 {p.freeOnFloor.length > 0 && (
                   <ul className="freeuntil__rooms">
-                    {p.freeOnFloor.slice(0, FREE_LIST_MAX).map((r) => (
-                      <li key={r.key}>
-                        <button className="chip" onClick={() => p.onPickRoom(r.key)}>
-                          {r.key}
+                    {p.freeOnFloor.slice(0, FREE_LIST_MAX).map(({ room, until }) => (
+                      <li key={room.key}>
+                        <button className="chip" onClick={() => p.onPickRoom(room.key)}>
+                          {room.key}
+                          <span className="chip__until">{until === null ? 'rest of day' : `till ${formatMinutes(until)}`}</span>
                         </button>
                       </li>
                     ))}

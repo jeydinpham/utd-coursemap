@@ -907,6 +907,11 @@ path.room--selected {
   border-color: var(--accent);
   color: var(--ink);
 }
+/* When the room is next booked, quieter than the room itself */
+.chip__until {
+  margin-left: 8px;
+  color: var(--dim);
+}
 .freeuntil__more {
   align-self: center;
   margin-left: 4px;

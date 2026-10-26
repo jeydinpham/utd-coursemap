@@ -3,7 +3,7 @@ import CampusMap from './components/CampusMap';
 import ControlCard from './components/ControlCard';
 import RoomPanel from './components/RoomPanel';
 import type { Building, CampusFeature, CampusMoment, LatLng, Meeting, RoomShape, ScheduleFile } from './types';
-import { compareRooms, indexSchedule, isEvent, isFreeUntil, matchesQuery, meetsOn, roomKey, roomStatus } from './lib/schedule';
+import { indexSchedule, isEvent, isFreeUntil, matchesQuery, nextStartAfter, meetsOn, roomKey, roomStatus } from './lib/schedule';
 import { campusNow, formatDate, toMinutes, weekdayOf } from './lib/time';
 
 interface Data {
@@ -60,6 +60,7 @@ export default function App() {
   const [focus, setFocus] = useState<{ key: string; n: number } | null>(null);
   const [query, setQuery] = useState('');
   const [freeUntil, setFreeUntil] = useState<number | null>(null);
+  const [view, setView] = useState<LatLng | null>(null);
   const [chosenFloor, setFloor] = useState<number | null>(null);
   const clock = useCampusClock();
 
@@ -111,7 +112,7 @@ export default function App() {
 
   // Rooms with nothing booked from now until the chosen time, across every floor.
   const freeRooms = useMemo(
-    () => (freeUntil === null || !index ? null : drawable.filter((r) => isFreeUntil(index, r.key, moment, freeUntil)).sort((a, b) => a.building.localeCompare(b.building) || compareRooms(a, b))),
+    () => (freeUntil === null || !index ? null : drawable.filter((r) => isFreeUntil(index, r.key, moment, freeUntil))),
     [freeUntil, index, drawable, moment],
   );
   const freeByFloor = useMemo(() => {
@@ -119,6 +120,22 @@ export default function App() {
     for (const r of freeRooms ?? []) byFloor.set(r.floor, (byFloor.get(r.floor) ?? 0) + 1);
     return byFloor;
   }, [freeRooms]);
+
+  // The free rooms on this floor, nearest to the middle of the map first, with when each is next booked.
+  const freeNearby = useMemo(() => {
+    if (!freeRooms || !index || !data) return [];
+    const distance = (key: string) => {
+      const c = data.shapes.get(key)!.center;
+      if (!view) return 0;
+      const dLat = c[0] - view[0];
+      const dLng = (c[1] - view[1]) * Math.cos((view[0] * Math.PI) / 180);
+      return dLat * dLat + dLng * dLng;
+    };
+    return freeRooms
+      .filter((r) => r.floor === floor)
+      .map((room) => ({ room, until: nextStartAfter(index, room.key, moment), d: distance(room.key) }))
+      .sort((a, b) => a.d - b.d);
+  }, [freeRooms, index, data, view, floor, moment]);
 
   // Search and the free-until filter narrow the map together.
   const highlight = useMemo(() => {
@@ -180,6 +197,7 @@ export default function App() {
         highlight={highlight}
         focus={focus}
         onSelectRoom={setSelectedKey}
+        onView={setView}
       />
       <ControlCard
         moment={moment}
@@ -196,7 +214,7 @@ export default function App() {
         activeByFloor={activeByFloor}
         freeUntil={freeUntil}
         onFreeUntil={setFreeUntil}
-        freeOnFloor={freeRooms?.filter((r) => r.floor === floor) ?? []}
+        freeOnFloor={freeNearby}
         freeByFloor={freeByFloor}
         onPickRoom={(key) => {
           const room = index.rooms.get(key);

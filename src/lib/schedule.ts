@@ -94,6 +94,12 @@ export function isFreeUntil(index: ScheduleIndex, key: string, at: CampusMoment,
   return meetingsOn(index, key, at.date, at.weekday).every((m) => toMinutes(m.end) <= at.minutes || toMinutes(m.start) >= until);
 }
 
+/** When the room is next booked at or after `at` that day (minutes since midnight); null if never. */
+export function nextStartAfter(index: ScheduleIndex, key: string, at: CampusMoment): number | null {
+  const next = meetingsOn(index, key, at.date, at.weekday).find((m) => toMinutes(m.start) >= at.minutes);
+  return next ? toMinutes(next.start) : null;
+}
+
 /** Lower-cased, space-insensitive match used by the search box: "cs3345", "ECSS 2.4", "data struct". */
 export function matchesQuery(m: Meeting, q: string): boolean {
   const norm = (s: string) => s.toLowerCase().replace(/\s+/g, '');
