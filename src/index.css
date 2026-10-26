@@ -2,6 +2,7 @@
  * Styled with the jeydinpham.com design system: warm dark neutrals, one orange
  * accent, Big Shoulders display type, Hanken Grotesk body, Martian Mono labels.
  * Dark is the default; light ("warm paper") is opt-in via data-theme="light".
+ * Playful layer: pixel icons (PixelIcon.tsx).
  *
  * Map exception: the map has to tell classes, events and "starting soon" apart,
  * so it adds two colors from the design's pixel-art palette (blue, gold).
@@ -30,6 +31,9 @@
   --ease-nudge: cubic-bezier(0.2, 0.9, 0.2, 1);
 
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+
+  /* Pixel corners: notched one step (2px) */
+  --notch-2: polygon(0 2px, 2px 2px, 2px 0, calc(100% - 2px) 0, calc(100% - 2px) 2px, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 2px calc(100% - 2px), 0 calc(100% - 2px));
 
   /* Map statuses (accent + pixel-art palette) */
   --event: #5b8def;
@@ -286,8 +290,31 @@ p {
   border-color: var(--ink);
 }
 .theme-toggle:hover {
-  transform: rotate(-20deg);
+  transform: rotate(20deg);
 }
+/* The site's sun (shown in dark mode) and moon (in light mode), drawn in CSS */
+.theme-toggle .sun {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 -7px 0 -3px currentColor,
+    0 7px 0 -3px currentColor,
+    7px 0 0 -3px currentColor,
+    -7px 0 0 -3px currentColor,
+    5px 5px 0 -3px currentColor,
+    -5px -5px 0 -3px currentColor,
+    5px -5px 0 -3px currentColor,
+    -5px 5px 0 -3px currentColor;
+}
+.theme-toggle .moon {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  box-shadow: inset -4px -2px 0 0 currentColor;
+}
+
 
 /* Theme switch: diagonal wipe (View Transitions) */
 ::view-transition-group(root) {
@@ -329,6 +356,39 @@ p {
   inset: 0;
 }
 
+/* Entrance: once the data is in, the map fades in and the floating pieces rise in after it
+   (the design system's reveal: 32px low and transparent, 0.9s rise, staggered). Uses the
+   translate property so it doesn't fight elements that position themselves with transform. */
+.app > .map {
+  animation: fade-in 0.9s ease both;
+}
+.app > .card,
+.app > .legend,
+.app > .sample-note {
+  animation: rise-in 0.9s var(--ease-rise) both;
+  animation-delay: var(--d, 0ms);
+}
+.app > .card {
+  --d: 150ms;
+}
+.app > .legend {
+  --d: 300ms;
+}
+.app > .sample-note {
+  --d: 400ms;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    translate: 0 32px;
+  }
+}
+
 /* Floating surfaces over the map: frosted glass like the site's navbar */
 .card,
 .panel,
@@ -342,38 +402,13 @@ p {
   box-shadow: var(--shadow);
 }
 
-/* Loading screen: the name in spaced mono with an orange copy wiped across it */
+/* Error screen when the map data can't load */
 .splash {
   display: grid;
   place-items: center;
   height: 100%;
   padding: 20px;
   text-align: center;
-}
-.splash__word {
-  position: relative;
-  font: 400 13px/1 var(--f-mono);
-  font-stretch: 87.5%;
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
-  color: var(--dim);
-}
-.splash__word::after {
-  content: attr(data-text);
-  position: absolute;
-  inset: 0;
-  color: var(--accent);
-  font-weight: 700;
-  clip-path: inset(0 100% 0 0);
-  animation: wipe 1.4s var(--ease-draw) infinite;
-}
-@keyframes wipe {
-  50% {
-    clip-path: inset(0 0 0 0);
-  }
-  100% {
-    clip-path: inset(0 0 0 100%);
-  }
 }
 .splash__error {
   max-width: 46ch;
@@ -754,9 +789,9 @@ path.room--selected {
   height: 36px;
   padding: 0 8px;
   align-items: center;
-  border: 1px solid var(--faint);
-  border-radius: 999px;
+  border: 2px solid var(--faint);
   background: rgba(var(--bg-rgb), 0.7);
+  clip-path: var(--notch-2);
   cursor: pointer;
   transition:
     border-color 0.3s ease-in-out,
@@ -779,6 +814,7 @@ path.room--selected {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.22); /* a pixel shade along the bottom */
 }
 .floors__btn--on span {
   color: var(--on-accent);
@@ -794,16 +830,38 @@ path.room--selected {
   align-items: center;
   gap: 12px;
 }
+/* The select draws no arrow of its own; a pixel chevron sits inside its right edge instead */
+.freeuntil__select {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.freeuntil__arrow {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  translate: 0 -50%;
+  rotate: 180deg;
+  color: var(--dim);
+  pointer-events: none;
+  transition: color 0.3s ease-in-out;
+}
+.freeuntil__select:hover .freeuntil__arrow {
+  color: var(--ink);
+}
 .freeuntil select {
   flex: 1;
   min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
   font: 400 12px/1 var(--f-mono);
   font-stretch: 87.5%;
   color: var(--ink);
   background: rgba(var(--bg-rgb), 0.7);
   border: 1px solid var(--faint);
   border-radius: 999px;
-  padding: 9px 12px;
+  padding: 9px 38px 9px 12px;
   cursor: pointer;
   transition: border-color 0.3s ease-in-out;
 }
@@ -828,18 +886,26 @@ path.room--selected {
   max-height: 96px;
   overflow: auto;
 }
+/* Free rooms as the design system's tags: mono, 1px border, 4px corners */
 .chip {
-  padding: 6px 10px;
+  padding: 5px 8px;
   border: 1px solid var(--faint);
-  border-radius: 999px;
+  border-radius: 4px;
   background: rgba(var(--bg-rgb), 0.7);
-  color: var(--ink);
+  color: var(--ink-2);
+  font: 400 10.5px/1.2 var(--f-mono);
+  font-stretch: 87.5%;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 0.3s ease-in-out;
+  transition:
+    border-color 0.3s ease-in-out,
+    color 0.3s ease-in-out;
 }
 .chip:hover,
 .chip:focus-visible {
-  border-color: var(--accent-2);
+  border-color: var(--accent);
+  color: var(--ink);
 }
 .freeuntil__more {
   align-self: center;
@@ -904,9 +970,56 @@ path.room--selected {
   cursor: pointer;
   transition: background 0.3s ease-in-out;
 }
-.results button:hover,
-.results button:focus-visible {
-  background: var(--bg-2);
+/* The picked result fills with the accent, like a row in the site's jump menu */
+.results button.on {
+  background: var(--accent);
+}
+.results button.on .results__main::before {
+  content: '\25B8  ';
+}
+.results button.on .results__main,
+.results button.on .results__main strong,
+.results button.on .results__meta {
+  color: var(--on-accent);
+}
+.results button.on .tag,
+.results button.on .badge {
+  border-color: currentColor;
+  background: none;
+  color: inherit;
+}
+
+/* ⌘K hint in the search box, as on the site; hidden on touch screens */
+.kbd-chip {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 3px;
+  pointer-events: none;
+}
+.kbd-chip kbd {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  font: inherit;
+  letter-spacing: 0;
+  border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+@media (hover: none) {
+  .kbd-chip {
+    display: none;
+  }
+}
+@media (hover: hover) {
+  .search input {
+    padding-right: 72px;
+  }
 }
 .results__main {
   font-size: 14px;
@@ -950,26 +1063,32 @@ path.room--selected {
   align-items: center;
   gap: 7px;
 }
+/* Legend tiles in pixel art: a notched outline in a darker shade and a lit top-left corner */
 .swatch {
+  --fill: var(--room-free);
+  --hl: transparent;
   width: 12px;
-  height: 8px;
-  border-radius: 2px;
-  border: 1px solid var(--room-stroke);
+  height: 12px;
+  border: 2px solid var(--room-stroke);
+  clip-path: var(--notch-2);
+  background:
+    linear-gradient(var(--hl), var(--hl)) 0 0 / 4px 2px no-repeat,
+    linear-gradient(var(--hl), var(--hl)) 0 0 / 2px 4px no-repeat,
+    var(--fill);
 }
 .swatch--active {
-  background: var(--accent);
-  border-color: transparent;
+  --fill: var(--accent);
+  --hl: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent) 55%, #000);
 }
 .swatch--event {
-  background: var(--event);
-  border-color: transparent;
+  --fill: var(--event);
+  --hl: color-mix(in srgb, var(--event) 55%, #fff);
+  border-color: color-mix(in srgb, var(--event) 55%, #000);
 }
 .swatch--soon {
-  background: var(--soon-fill);
+  --fill: var(--soon-fill);
   border-color: var(--soon);
-}
-.swatch--free {
-  background: var(--room-free);
 }
 
 .sample-note {

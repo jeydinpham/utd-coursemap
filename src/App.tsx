@@ -160,14 +160,8 @@ export default function App() {
         <p className="mono splash__error">{error}</p>
       </div>
     );
-  if (!data || !index)
-    return (
-      <div className="splash" role="status" aria-label="Loading campus map">
-        <p className="splash__word" data-text="UTD Course Map">
-          UTD Course Map
-        </p>
-      </div>
-    );
+  // Nothing to show while the data loads; the page then fades in (see .app > * in index.css).
+  if (!data || !index) return <div className="app" role="status" aria-label="Loading campus map" />;
 
   const selected = selectedKey ? index.rooms.get(selectedKey) : undefined;
 

@@ -3,6 +3,7 @@ import type { CampusMoment, Room } from '../types';
 import type { ScheduleIndex } from '../lib/schedule';
 import { isEvent, meetingLabel, meetingsOn, roomStatus } from '../lib/schedule';
 import type { Meeting } from '../types';
+import PixelIcon from './PixelIcon';
 import { formatDate, formatDuration, formatMinutes, formatRange, shiftDate, toMinutes, weekdayOf } from '../lib/time';
 
 interface Props {
@@ -84,9 +85,7 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
           </h2>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Close room schedule">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+          <PixelIcon name="close" />
         </button>
       </header>
 
@@ -124,9 +123,7 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
 
       <nav className="daynav" aria-label="Choose day">
         <button className="icon-btn" onClick={() => setDate(shiftDate(date, -1))} aria-label="Previous day">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M15 5l-7 7 7 7" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-          </svg>
+          <PixelIcon name="left" />
         </button>
         <div className="daynav__label">
           <strong>{formatDate(date)}</strong>
@@ -135,9 +132,7 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
           </span>
         </div>
         <button className="icon-btn" onClick={() => setDate(shiftDate(date, 1))} aria-label="Next day">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-          </svg>
+          <PixelIcon name="right" />
         </button>
       </nav>
       {!isViewedDay && (
