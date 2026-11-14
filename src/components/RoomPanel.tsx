@@ -13,6 +13,8 @@ interface Props {
   index: ScheduleIndex;
   moment: CampusMoment;
   onClose: () => void;
+  /** "panel": the desktop side panel. "sheet": content for the phone's bottom sheet. */
+  variant?: 'panel' | 'sheet';
 }
 
 const PX_PER_MIN = 1.1;
@@ -48,7 +50,7 @@ function layoutLanes(meetings: Meeting[]) {
 const DAY_START = 7 * 60;
 const DAY_END = 22 * 60;
 
-export default function RoomPanel({ room, buildingName, roomType, index, moment, onClose }: Props) {
+export default function RoomPanel({ room, buildingName, roomType, index, moment, onClose, variant = 'panel' }: Props) {
   // The parent remounts this panel per room and viewed date, so this starts on the viewed day.
   const [date, setDate] = useState(moment.date);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,6 +61,8 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
   const status = roomStatus(index, room.key, moment);
   const capacity = (index.byRoom.get(room.key) ?? []).find((m) => m.cap)?.cap;
 
+  const Root = variant === 'sheet' ? 'div' : 'aside';
+
   const start = Math.min(DAY_START, ...meetings.map((m) => Math.floor(toMinutes(m.start) / 60) * 60));
   const end = Math.max(DAY_END, ...meetings.map((m) => Math.ceil(toMinutes(m.end) / 60) * 60));
   const hours = Array.from({ length: (end - start) / 60 + 1 }, (_, i) => start + i * 60);
@@ -66,14 +70,22 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
 
   // Scroll the current time (or the first class) into view when the day changes. Deliberately
   // not re-run on every clock tick, which would yank the list while someone is reading it.
+  // In the bottom sheet the timeline scrolls with the sheet rather than on its own.
   useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
     const target = isViewedDay ? moment.minutes : meetings[0] ? toMinutes(meetings[0].start) : DAY_START + 60;
-    scrollRef.current?.scrollTo({ top: Math.max(0, y(target) - 120), behavior: 'smooth' });
+    const scroller = el.closest<HTMLElement>('.sheet__content') ?? el;
+    const offset = scroller === el ? 0 : el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    // Only nudge the sheet when it's already scrolled into the timeline; otherwise keep the summary in view.
+    if (scroller !== el && scroller.scrollTop < offset - 40) return;
+    scroller.scrollTo({ top: Math.max(0, offset + y(target) - 120), behavior: 'smooth' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
   return (
-    <aside className="panel" aria-label={`Schedule for ${room.key}`}>
+    <Root className={variant === 'sheet' ? 'room-sheet' : 'panel'} aria-label={`Schedule for ${room.key}`}>
+      <div data-sheet-peek>
       <header className="panel__head">
         <div>
           <p className="mono panel__eyebrow">
@@ -119,6 +131,7 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
             {status.next && <p className="status__detail">Next up: {meetingLabel(status.next)}</p>}
           </>
         )}
+      </div>
       </div>
 
       <nav className="daynav" aria-label="Choose day">
@@ -189,6 +202,6 @@ export default function RoomPanel({ room, buildingName, roomType, index, moment,
           </ol>
         )}
       </div>
-    </aside>
+    </Root>
   );
 }

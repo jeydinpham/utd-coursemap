@@ -1331,56 +1331,396 @@ path.room--selected {
   text-align: center;
 }
 
-/* ---------- Small screens ---------- */
+/* ---------- Phones: search bar, floor rail and bottom sheet ---------- */
 
-@media (max-width: 760px) {
-  .card {
-    top: 12px;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    padding: 14px;
-    gap: 14px;
-  }
-  .card__body {
-    gap: 14px;
-  }
-  .card--collapsed .logo {
-    font-size: 16px;
-  }
-  .clock__time {
-    font-size: 40px;
-  }
-  .tally__n {
-    font-size: 28px;
-  }
-  .panel {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: auto;
-    height: 62vh;
-    border-radius: 6px 6px 0 0;
-    border-bottom: 0;
-  }
-  .panel__title {
-    font-size: 44px;
-  }
-  .legend {
-    left: 12px;
-    bottom: 20px;
-    gap: 12px;
-  }
-  .sample-note {
-    bottom: 64px;
-    left: 12px;
-    transform: none;
-  }
-  .app--panel .legend,
-  .app--panel .sample-note,
-  .app--panel .leaflet-bottom {
+/* Chips on a chip-row are pressed with a thumb, so they get proper touch targets */
+.chip--on,
+.chip--on:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.chip--on .chip__until {
+  color: var(--on-accent);
+}
+.search__clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.app--mobile {
+  --gutter: 12px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Keep the browser from treating map gestures as page scroll or pull-to-refresh */
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+/* Pinch to zoom on phones; the map's own buttons only get in the way */
+.app--mobile .leaflet-control-zoom {
+  display: none;
+}
+/* Credits ride just above the sheet */
+.app--mobile .leaflet-bottom {
+  bottom: var(--sheet-h, 0px);
+  transition: bottom 0.45s var(--ease-rise);
+}
+/* Hover tooltips don't exist on touch; tapping a room opens its schedule instead */
+@media (hover: none) {
+  .leaflet-tooltip.map-tooltip {
     display: none;
+  }
+}
+
+/* Floating search bar */
+.topbar {
+  position: absolute;
+  top: calc(var(--safe-top) + 10px);
+  left: var(--gutter);
+  right: var(--gutter);
+  z-index: 1200;
+  display: flex;
+  gap: 8px;
+  touch-action: manipulation;
+}
+.topbar .search {
+  flex: 1;
+  min-width: 0;
+}
+.topbar .search input {
+  height: 48px;
+  /* 16px keeps iOS from zooming the page when the field is focused */
+  font-size: 16px;
+  padding: 0 46px 0 42px;
+  background: rgba(var(--bg-rgb), 0.9);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: var(--shadow);
+}
+.topbar .search input::-webkit-search-cancel-button {
+  display: none;
+}
+.topbar .theme-toggle {
+  width: 48px;
+  height: 48px;
+  background: rgba(var(--bg-rgb), 0.9);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: var(--shadow);
+}
+.topbar .results {
+  max-height: min(60dvh, 460px);
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+.topbar .results button {
+  padding: 14px 16px;
+}
+
+/* Elevator-style floor picker on the right edge, in the floor buttons' pixel-notch style */
+.floor-rail {
+  position: absolute;
+  top: calc(var(--safe-top) + 74px);
+  right: var(--gutter);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border: 2px solid var(--faint);
+  clip-path: var(--notch-2);
+  background: rgba(var(--bg-rgb), 0.92);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  touch-action: manipulation;
+  transition: opacity 0.3s ease-in-out;
+}
+.floor-rail .floors__btn {
+  flex: none;
+  flex-direction: column;
+  gap: 3px;
+  width: 44px;
+  height: 50px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.floor-rail .floors__btn strong {
+  font-size: 22px;
+}
+/* The count sits under the floor number (the notched corners would clip a corner badge) */
+.floor-rail .floors__btn span {
+  font-size: 9px;
+}
+.floor-rail .floors__btn--on,
+.floor-rail .floors__btn--on:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.topbar--searching ~ .floor-rail {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Bottom sheet */
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1150;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--safe-bottom);
+  border-radius: 14px 14px 0 0;
+  border-bottom: 0;
+  background: rgba(var(--bg-rgb), 0.94);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid var(--faint);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35);
+  transition: height 0.45s var(--ease-rise);
+  touch-action: manipulation;
+}
+.sheet--dragging {
+  transition: none;
+  user-select: none;
+}
+.sheet__grab {
+  flex: none;
+  display: grid;
+  place-items: center;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet__grab span {
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--faint);
+  transition: background 0.3s ease-in-out;
+}
+.sheet__grab:active span {
+  background: var(--dim);
+}
+.sheet [data-sheet-peek] {
+  touch-action: none;
+}
+.sheet__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 16px 20px;
+  touch-action: pan-y;
+  scrollbar-width: none;
+}
+.sheet__content::-webkit-scrollbar {
+  display: none;
+}
+.sheet--peek .sheet__content {
+  overflow: hidden;
+}
+
+/* Campus overview inside the sheet */
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.overview__peek {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.filter-pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+.filter-pill svg {
+  width: 10px;
+  height: 10px;
+}
+.overview .now {
+  padding-top: 0;
+  border-top: 0;
+}
+.overview .clock__time {
+  font-size: 46px;
+}
+.overview .tally__n {
+  font-size: 32px;
+}
+.overview .timetravel {
+  padding: 14px;
+  border-radius: 6px;
+  background: var(--bg-2);
+}
+.overview .timetravel .field:first-child {
+  flex: 1;
+}
+.overview .timetravel .field input[type='date'] {
+  width: 100%;
+  min-height: 40px;
+  font-size: 14px;
+}
+.overview .timetravel input[type='range'] {
+  height: 32px;
+}
+.overview .timetravel .btn {
+  width: 100%;
+  justify-content: center;
+  padding: 14px 16px;
+}
+.freeuntil__chips-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Sideways-scrolling row of chips, edge to edge inside the sheet */
+.chip-row {
+  display: flex;
+  gap: 8px;
+  margin: 0 -16px;
+  padding: 2px 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 16px; /* snap chips to the content edge, not the screen edge */
+  scrollbar-width: none;
+  touch-action: pan-x;
+  list-style: none;
+}
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+.chip-row > *,
+.chip-row > li > .chip {
+  flex: none;
+  scroll-snap-align: start;
+}
+.chip-row .chip,
+.chip-row > .chip {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.freeuntil__rooms.chip-row {
+  max-height: none;
+  flex-wrap: nowrap;
+}
+.legend--inline {
+  position: static;
+  flex-wrap: wrap;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--faint);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.overview__brand {
+  margin: 0;
+  font: 800 20px/1 var(--f-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--faint);
+}
+
+/* A room's schedule inside the sheet: the timeline scrolls with the sheet */
+.room-sheet .panel__head {
+  padding: 4px 0 14px;
+}
+.room-sheet .panel__title {
+  font-size: 46px;
+}
+.room-sheet .icon-btn {
+  width: 44px;
+  height: 44px;
+}
+.room-sheet .status {
+  margin: 0;
+}
+.room-sheet .daynav {
+  padding: 14px 0 12px;
+}
+.room-sheet .daynav .icon-btn {
+  width: 44px;
+  height: 44px;
+}
+.room-sheet .daynav__back {
+  display: block;
+  margin: 0 auto 12px;
+}
+.room-sheet .timeline-scroll {
+  overflow: visible;
+  padding: 14px 0 8px;
+}
+
+.app--mobile .sample-note {
+  top: auto;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: calc(var(--sheet-h, 0px) + 10px);
+  transform: none;
+  white-space: normal;
+  text-align: center;
+}
+
+/* Phones held sideways: there's no height for a vertical rail, so floors sit in a row beside search */
+@media (max-height: 520px) {
+  .app--mobile .topbar {
+    right: calc(var(--gutter) + 212px);
+  }
+  .app--mobile .floor-rail {
+    top: calc(var(--safe-top) + 8px);
+    flex-direction: row;
+  }
+  .app--mobile .floor-rail .floors__btn {
+    width: 44px;
+    height: 44px;
+  }
+  .app--mobile .floor-rail .floors__btn strong {
+    font-size: 18px;
+  }
+}
+
+/* Entrance: the bar and rail drop in, the sheet rises */
+.app > .topbar,
+.app > .floor-rail {
+  animation: rise-in 0.9s var(--ease-rise) both;
+  animation-delay: 150ms;
+}
+.app > .sheet {
+  animation: sheet-in 0.7s var(--ease-rise) both;
+  animation-delay: 250ms;
+}
+@keyframes sheet-in {
+  from {
+    translate: 0 100%;
   }
 }
 

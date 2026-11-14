@@ -52,6 +52,8 @@ interface Props {
   highlight: Set<string> | null;
   /** Changing this value flies the map to that room. */
   focus: { key: string; n: number } | null;
+  /** Screen space covered by panels (px); flying to a room centres it in what's left. */
+  insets: { top: number; right: number; bottom: number };
   onSelectRoom: (key: string | null) => void;
   /** Called with the map's center whenever the view settles, and once on load. */
   onView: (center: LatLng) => void;
@@ -81,13 +83,17 @@ interface BuildingLayer {
 // Event names come from Astra as free text, so escape them before putting them in tooltip HTML.
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-export default function CampusMap({ campus, buildings, index, shapes, visibleRooms, academic, floorBuildings, moment, selectedKey, highlight, focus, onSelectRoom, onView }: Props) {
+export default function CampusMap({ campus, buildings, index, shapes, visibleRooms, academic, floorBuildings, moment, selectedKey, highlight, focus, insets, onSelectRoom, onView }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const roomsRef = useRef<RoomLayer[]>([]);
   const buildingsRef = useRef<BuildingLayer[]>([]);
   const onSelectRef = useRef(onSelectRoom);
   const onViewRef = useRef(onView);
+  const insetsRef = useRef(insets);
+  useEffect(() => {
+    insetsRef.current = insets;
+  }, [insets]);
   useEffect(() => {
     onSelectRef.current = onSelectRoom;
     onViewRef.current = onView;
@@ -298,11 +304,10 @@ export default function CampusMap({ campus, buildings, index, shapes, visibleRoo
     const map = mapRef.current!;
     const r = roomsRef.current.find((x) => x.key === focus.key);
     if (!r) return;
-    // Aim off-centre so the room isn't hidden behind the schedule panel
-    // (a bottom sheet on phones, a right-hand column on wider screens).
+    // Aim off-centre so the room lands in the uncovered part of the screen, between the
+    // phone's search bar and bottom sheet, or left of the desktop schedule panel.
     const zoom = Math.max(map.getZoom(), 19);
-    const size = map.getSize();
-    const shift = size.x < 720 ? L.point(0, size.y * 0.18) : L.point(190, 0);
+    const shift = L.point(insetsRef.current.right / 2, (insetsRef.current.bottom - insetsRef.current.top) / 2);
     map.flyTo(map.unproject(map.project(r.center, zoom).add(shift), zoom), zoom, { duration: 0.8 });
   }, [focus]);
 

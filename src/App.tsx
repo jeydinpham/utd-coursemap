@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import CampusMap from './components/CampusMap';
-import ControlCard from './components/ControlCard';
+import ControlCard, { type ControlProps } from './components/ControlCard';
+import MobileShell from './components/MobileShell';
 import RoomPanel from './components/RoomPanel';
+import { Legend } from './components/controls';
+import type { Snap } from './components/BottomSheet';
+import { MOBILE_QUERY, useMediaQuery } from './lib/useMediaQuery';
 import type { Building, CampusFeature, CampusMoment, LatLng, Meeting, RoomShape, ScheduleFile } from './types';
 import { indexSchedule, isEvent, isFreeUntil, matchesQuery, nextStartAfter, meetsOn, roomKey, roomStatus } from './lib/schedule';
 import { campusNow, formatDate, toMinutes, weekdayOf } from './lib/time';
@@ -63,6 +67,10 @@ export default function App() {
   const [view, setView] = useState<LatLng | null>(null);
   const [chosenFloor, setFloor] = useState<number | null>(null);
   const clock = useCampusClock();
+  const mobile = useMediaQuery(MOBILE_QUERY);
+  const [snap, setSnap] = useState<Snap>('peek');
+  const [mobileInsets, setMobileInsets] = useState({ top: 0, bottom: 0 });
+  const onInsets = useCallback((i: { top: number; bottom: number }) => setMobileInsets(i), []);
 
   useEffect(() => {
     loadData().then(setData, (e) => setError(String(e.message ?? e)));
@@ -182,8 +190,64 @@ export default function App() {
 
   const selected = selectedKey ? index.rooms.get(selectedKey) : undefined;
 
+  // Selecting a room raises the sheet to show its schedule; clearing it folds the sheet back.
+  const selectRoom = (key: string | null) => {
+    setSelectedKey(key);
+    if (mobile) setSnap(key ? 'half' : 'peek');
+  };
+  const pickRoom = (key: string) => {
+    const room = index.rooms.get(key);
+    // Jump to the room's floor so it is actually on the map.
+    if (room && room.floor !== floor) setFloor(room.floor);
+    selectRoom(key);
+    setFocus((f) => ({ key, n: (f?.n ?? 0) + 1 }));
+  };
+
+  const controls: ControlProps = {
+    moment,
+    live: !override,
+    onTimeTravel: setOverride,
+    activeClasses,
+    activeEvents,
+    query,
+    onQuery: setQuery,
+    results,
+    floors,
+    floor,
+    onFloor: setFloor,
+    activeByFloor,
+    freeUntil,
+    onFreeUntil: setFreeUntil,
+    freeOnFloor: freeNearby,
+    freeByFloor,
+    onPickRoom: pickRoom,
+    sourceLabel: sourceLabel(data.schedule),
+    hasInstructors,
+    outOfRange: outOfRange(data.schedule, moment.date),
+  };
+
+  const roomPanel = (variant: 'panel' | 'sheet') =>
+    selected && (
+      <RoomPanel
+        key={`${selected.key}|${moment.date}`}
+        room={selected}
+        buildingName={buildingNames.get(selected.building)}
+        roomType={data.schedule.roomTypes?.[selected.key]}
+        index={index}
+        moment={moment}
+        onClose={() => selectRoom(null)}
+        variant={variant}
+      />
+    );
+
+  // The part of the map that isn't covered, so flying to a room lands where you can see it.
+  const insets = mobile ? { top: mobileInsets.top, right: 0, bottom: mobileInsets.bottom } : { top: 0, right: selected ? 420 : 0, bottom: 0 };
+
   return (
-    <div className={`app${selected ? ' app--panel' : ''}`}>
+    <div
+      className={`app${selected ? ' app--panel' : ''}${mobile ? ' app--mobile' : ''}`}
+      style={mobile ? ({ '--sheet-h': `${mobileInsets.bottom}px` } as React.CSSProperties) : undefined}
+    >
       <CampusMap
         campus={data.campus}
         buildings={data.buildings}
@@ -196,56 +260,21 @@ export default function App() {
         selectedKey={selectedKey}
         highlight={highlight}
         focus={focus}
-        onSelectRoom={setSelectedKey}
+        insets={insets}
+        onSelectRoom={selectRoom}
         onView={setView}
       />
-      <ControlCard
-        moment={moment}
-        live={!override}
-        onTimeTravel={setOverride}
-        activeClasses={activeClasses}
-        activeEvents={activeEvents}
-        query={query}
-        onQuery={setQuery}
-        results={results}
-        floors={floors}
-        floor={floor}
-        onFloor={setFloor}
-        activeByFloor={activeByFloor}
-        freeUntil={freeUntil}
-        onFreeUntil={setFreeUntil}
-        freeOnFloor={freeNearby}
-        freeByFloor={freeByFloor}
-        onPickRoom={(key) => {
-          const room = index.rooms.get(key);
-          // Jump to the room's floor so it is actually on the map.
-          if (room && room.floor !== floor) setFloor(room.floor);
-          setSelectedKey(key);
-          setFocus((f) => ({ key, n: (f?.n ?? 0) + 1 }));
-        }}
-        sourceLabel={sourceLabel(data.schedule)}
-        hasInstructors={hasInstructors}
-        outOfRange={outOfRange(data.schedule, moment.date)}
-      />
-      <div className="legend mono" aria-label="Legend">
-        <span><i className="swatch swatch--active" /> Class</span>
-        <span><i className="swatch swatch--event" /> Event</span>
-        <span><i className="swatch swatch--soon" /> Soon</span>
-        <span><i className="swatch swatch--free" /> Free</span>
-      </div>
+      {mobile ? (
+        <MobileShell {...controls} room={roomPanel('sheet') || null} onCloseRoom={() => selectRoom(null)} snap={snap} onSnap={setSnap} onInsets={onInsets} />
+      ) : (
+        <>
+          <ControlCard {...controls} />
+          <Legend />
+          {roomPanel('panel')}
+        </>
+      )}
       {data.schedule.source === 'sample' && (
         <p className="sample-note mono">Sample data · run npm run data:astra for real schedules</p>
-      )}
-      {selected && (
-        <RoomPanel
-          key={`${selected.key}|${moment.date}`}
-          room={selected}
-          buildingName={buildingNames.get(selected.building)}
-          roomType={data.schedule.roomTypes?.[selected.key]}
-          index={index}
-          moment={moment}
-          onClose={() => setSelectedKey(null)}
-        />
       )}
     </div>
   );
